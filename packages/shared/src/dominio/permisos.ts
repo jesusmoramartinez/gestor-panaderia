@@ -15,7 +15,13 @@
  */
 import type { Rol } from '../esquemas/auth.js';
 
-export const PERMISOS = ['usuario:ver', 'usuario:crear', 'auditoria:ver'] as const;
+export const PERMISOS = [
+  'usuario:ver',
+  'usuario:crear',
+  'auditoria:ver',
+  /** Crear, editar y desactivar insumos, categorías, presentaciones y mínimos. */
+  'insumo:editar',
+] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
 
@@ -27,7 +33,10 @@ export type Permiso = (typeof PERMISOS)[number];
  */
 export const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
   DUENO: PERMISOS,
-  ENCARGADO: ['usuario:ver'],
+  // El encargado administra el catálogo: es quien se da cuenta de que falta
+  // dar de alta un insumo. VER el catálogo no lleva permiso (lo necesita
+  // cualquiera que cargue stock), solo modificarlo.
+  ENCARGADO: ['usuario:ver', 'insumo:editar'],
   EMPLEADO: [],
 };
 

@@ -53,6 +53,8 @@ model Empresa {
   usuarios   Usuario[]
   auditorias Auditoria[]
   unidades   UnidadMedida[]
+  categorias CategoriaInsumo[]
+  insumos    Insumo[]
 
   @@map("empresa")
 }
@@ -78,8 +80,9 @@ model Sucursal {
   // onDelete: Restrict → la base impide borrar una empresa que tenga
   // sucursales. En este sistema no borramos nada (desactivamos), así que esto
   // es una red de seguridad contra un borrado accidental.
-  empresa  Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  usuarios UsuarioSucursal[]
+  empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuarios        UsuarioSucursal[]
+  insumoSucursals InsumoSucursal[]
 
   // La unicidad SIEMPRE empieza por empresa_id: dos panaderías distintas
   // pueden tener una sucursal con el mismo código.
@@ -280,9 +283,141 @@ model UnidadMedida {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  empresa Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  insumos Insumo[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId])
   @@map("unidad_medida")
+}
+
+/// Agrupa insumos para listar, filtrar y ordenar la lista de compras:
+/// harinas, lácteos, envases. Sin jerarquía a propósito: no hace falta y
+/// complicaría todas las consultas.
+model CategoriaInsumo {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId String  @map("empresa_id") @db.Uuid
+  nombre    String
+  activa    Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  insumos Insumo[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId])
+  @@map("categoria_insumo")
+}
+
+/// Materia prima o material que se compra y se consume.
+///
+/// El centro del catálogo. De acá van a colgar los movimientos de stock
+/// (Fase 6), las compras (Fase 8) y las transferencias (Fase 9).
+model Insumo {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId String  @map("empresa_id") @db.Uuid
+  /// Código interno, opcional: muchas panaderías identifican por nombre.
+  codigo    String?
+  nombre    String
+
+  categoriaId String? @map("categoria_id") @db.Uuid
+
+  /// LA UNIDAD EN LA QUE SE LLEVA EL STOCK, SIEMPRE.
+  ///
+  /// Es la decisión que hace que el kardex funcione: todo movimiento se guarda
+  /// convertido a esta unidad. Si un movimiento estuviera en bolsas, otro en kg
+  /// y otro en gramos, sumarlos exigiría convertir en cada consulta.
+  ///
+  /// Por eso NO se puede cambiar desde la edición normal: cambiarla
+  /// reinterpretaría todo el historial (los 100 "kg" pasarían a ser 100 "g").
+  /// El esquema de actualización simplemente no acepta este campo.
+  unidadBaseId String @map("unidad_base_id") @db.Uuid
+
+  activo Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa        Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  categoria      CategoriaInsumo?     @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  unidadBase     UnidadMedida         @relation(fields: [unidadBaseId], references: [id], onDelete: Restrict)
+  presentaciones PresentacionInsumo[]
+  porSucursal    InsumoSucursal[]
+
+  // Nombre único por empresa: dos filas "Harina 000" partirían el stock en dos
+  // sin que nadie se dé cuenta.
+  @@unique([empresaId, nombre])
+  @@unique([empresaId, codigo])
+  @@index([empresaId, activo])
+  @@index([categoriaId])
+  @@map("insumo")
+}
+
+/// Cómo se COMPRA un insumo: "Bolsa 25 kg", "Cajón 12 u", "Bidón 10 l".
+///
+/// Resuelve el pedido del cliente: compro en bolsas de 25 kg y el stock se
+/// lleva en kg. Es una tabla y no un campo del insumo porque un mismo insumo
+/// se compra en varias presentaciones a la vez (bolsa de 25 y de 50).
+model PresentacionInsumo {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId String @map("empresa_id") @db.Uuid
+  insumoId  String @map("insumo_id") @db.Uuid
+  nombre    String
+
+  /// Cuántas unidades BASE DEL INSUMO trae. Bolsa de 25 kg → 25.
+  ///
+  /// Cuando un documento usa esta presentación, COPIA este número en su propia
+  /// línea (factor_conversion). Si mañana alguien corrige la presentación de
+  /// 25 a 24, las compras del año pasado no deben cambiar.
+  cantidadBase Decimal @map("cantidad_base") @db.Decimal(18, 6)
+
+  /// La que se propone al comprar. Hay una sola por insumo; lo garantiza un
+  /// índice único parcial agregado a mano en la migración.
+  esDefault Boolean @default(false) @map("es_default")
+  activa    Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  insumo Insumo @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+
+  @@unique([insumoId, nombre])
+  @@index([insumoId])
+  @@map("presentacion_insumo")
+}
+
+/// Parámetros de un insumo EN una sucursal.
+///
+/// El stock mínimo depende de la sucursal: la central guarda 300 kg de harina
+/// y la otra 50. Es exactamente lo que pidió el cliente.
+///
+/// OJO: acá NO hay una columna `stock_actual`, y es a propósito. El saldo no se
+/// guarda: se calcula sumando los movimientos (Fase 6). Esta tabla guarda solo
+/// lo que CONFIGURA una persona.
+model InsumoSucursal {
+  insumoId   String @map("insumo_id") @db.Uuid
+  sucursalId String @map("sucursal_id") @db.Uuid
+  empresaId  String @map("empresa_id") @db.Uuid
+
+  /// En unidad base. Por debajo de esto, el insumo aparece en las alertas.
+  stockMinimo Decimal  @default(0) @map("stock_minimo") @db.Decimal(18, 6)
+  /// Para sugerir CUÁNTO reponer, no solo qué. Opcional.
+  stockMaximo Decimal? @map("stock_maximo") @db.Decimal(18, 6)
+  /// "Depósito B, estante 3". Ayuda al que cuenta.
+  ubicacion   String?
+
+  /// Un insumo puede no usarse en una sucursal.
+  activo Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  insumo   Insumo   @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  sucursal Sucursal @relation(fields: [sucursalId], references: [id], onDelete: Cascade)
+
+  @@id([insumoId, sucursalId])
+  @@index([empresaId, sucursalId])
+  @@map("insumo_sucursal")
 }

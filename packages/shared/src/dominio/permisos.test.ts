@@ -40,6 +40,17 @@ describe('matriz de permisos', () => {
 
   it('permisosDe devuelve la lista del rol', () => {
     expect(permisosDe('EMPLEADO')).toEqual([]);
-    expect(permisosDe('ENCARGADO')).toEqual(['usuario:ver']);
+    expect(permisosDe('ENCARGADO')).toEqual(['usuario:ver', 'insumo:editar']);
+  });
+
+  it('el encargado puede administrar el catálogo de insumos', () => {
+    // Es quien se da cuenta de que falta dar de alta un insumo.
+    expect(tienePermiso('ENCARGADO', 'insumo:editar')).toBe(true);
+  });
+
+  it('el empleado puede VER el catálogo pero no modificarlo', () => {
+    // Ver el catálogo no lleva permiso: cualquiera que cargue un consumo
+    // necesita elegir el insumo. Modificarlo sí.
+    expect(tienePermiso('EMPLEADO', 'insumo:editar')).toBe(false);
   });
 });

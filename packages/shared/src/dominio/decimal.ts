@@ -95,3 +95,33 @@ export function formatearCantidad(valor: Numerico, decimalesMaximos = ESCALA_CAN
     // de un cast: sabemos algo que el compilador no puede demostrar.
   }).format(texto as Intl.StringNumericLiteral);
 }
+
+/**
+ * Normaliza un número escrito por una persona a la forma que entiende Decimal.
+ *
+ * En Argentina se escribe "1.234,5": punto de miles y COMA decimal. Pero
+ * decimal.js (como todo el ecosistema) espera "1234.5". Sin esta traducción,
+ * alguien que escribe "2,5" kg recibiría un error incomprensible.
+ *
+ * La regla es la del idioma y es determinista:
+ *   - si hay una coma, la coma es el separador decimal y los puntos son de
+ *     miles (se descartan):   "1.234,5" → "1234.5"   "2,5" → "2.5"
+ *   - si no hay coma, el punto es el separador decimal: "2.5" → "2.5"
+ *
+ * No valida: si el texto no es un número, lo devuelve tal cual y que falle la
+ * validación de quien corresponde (así el mensaje de error es el adecuado).
+ */
+export function normalizarNumero(texto: string): string {
+  const limpio = texto.trim();
+  if (!limpio.includes(',')) return limpio;
+  return limpio.replaceAll('.', '').replace(',', '.');
+}
+
+/** ¿Este texto es un número decimal válido? Nunca lanza. */
+export function esDecimalValido(texto: string): boolean {
+  try {
+    return new Decimal(normalizarNumero(texto)).isFinite();
+  } catch {
+    return false;
+  }
+}

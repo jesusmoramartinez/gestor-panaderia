@@ -51,3 +51,18 @@ export function requiereSucursal(
     next();
   };
 }
+
+/**
+ * Extrae un parámetro de la URL para pasárselo a requiereSucursal.
+ *
+ * Existe porque Express tipa `req.params[x]` como `string | string[]`: con
+ * ciertos patrones de ruta un parámetro puede repetirse y llegar como lista.
+ * Acá nos quedamos solo con el caso de un valor único; cualquier otra cosa se
+ * trata como "no vino", y el middleware responde 400.
+ */
+export function paramDeRuta(nombre: string): (req: Request) => string | undefined {
+  return (req) => {
+    const valor = req.params[nombre];
+    return typeof valor === 'string' ? valor : undefined;
+  };
+}

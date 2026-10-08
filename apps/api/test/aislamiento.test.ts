@@ -1,5 +1,6 @@
 import type {
   EventoAuditoria,
+  ListadoInsumos,
   UnidadMedida,
   UsuarioResumen,
   UsuarioSesion,
@@ -31,6 +32,8 @@ let laferrere: {
   sucursalCentralId: string;
   usuarioIds: string[];
   unidadIds: string[];
+  insumoIds: string[];
+  harina000Id: string;
 };
 
 beforeAll(async () => {
@@ -40,7 +43,7 @@ beforeAll(async () => {
   // usuario de la otra empresa NO tiene que poder ver ni usar.
   const empresa = await prisma.empresa.findFirstOrThrow({
     where: { nombre: 'Panadería Laferrere' },
-    include: { sucursales: true, usuarios: true, unidades: true },
+    include: { sucursales: true, usuarios: true, unidades: true, insumos: true },
   });
   const central = empresa.sucursales.find((s) => s.codigo === 'CEN');
   if (!central) throw new Error('falta la sucursal CEN en la semilla');
@@ -50,6 +53,8 @@ beforeAll(async () => {
     sucursalCentralId: central.id,
     usuarioIds: empresa.usuarios.map((u) => u.id),
     unidadIds: empresa.unidades.map((u) => u.id),
+    insumoIds: empresa.insumos.map((i) => i.id),
+    harina000Id: empresa.insumos.find((i) => i.nombre === 'Harina 000')?.id ?? '',
   };
 });
 
@@ -139,6 +144,51 @@ describe('aislamiento entre empresas', () => {
     for (const id of laferrere.unidadIds) {
       expect(lista.map((u) => u.id)).not.toContain(id);
     }
+  });
+
+  it('dos empresas pueden tener un insumo con el MISMO nombre, y no se mezclan', async () => {
+    // Las dos tienen "Harina 000". Es el caso que demuestra que la unicidad es
+    // POR empresa y que el listado jamás cruza los datos.
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get('/api/insumos?limite=100');
+    expect(r.status).toBe(200);
+
+    const { items, total } = r.cuerpo as ListadoInsumos;
+    expect(total).toBe(2);
+    expect(items.map((i) => i.nombre).sort()).toEqual(['Azúcar', 'Harina 000']);
+
+    // Su "Harina 000" NO es la de la otra empresa.
+    const suHarina = items.find((i) => i.nombre === 'Harina 000');
+    expect(suHarina?.id).not.toBe(laferrere.harina000Id);
+    for (const id of laferrere.insumoIds) {
+      expect(JSON.stringify(items)).not.toContain(id);
+    }
+  });
+
+  it('pedir el detalle de un insumo ajeno responde 404, no 403', async () => {
+    // Un 403 confirmaría que ese insumo existe y es de alguien. Para este
+    // usuario, simplemente no existe.
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get(`/api/insumos/${laferrere.harina000Id}`);
+    expect(r.status).toBe(404);
+  });
+
+  it('no se puede editar ni desactivar un insumo de otra empresa', async () => {
+    await entrarComo('dueno@vecina.test');
+    const editar = await api.pedir('PATCH', `/api/insumos/${laferrere.harina000Id}`, {
+      nombre: 'Secuestrada',
+    });
+    expect(editar.status).toBe(404);
+
+    const baja = await api.post(`/api/insumos/${laferrere.harina000Id}/desactivar`);
+    expect(baja.status).toBe(404);
+
+    // Y sigue intacta.
+    const harina = await prisma.insumo.findUniqueOrThrow({
+      where: { id: laferrere.harina000Id },
+    });
+    expect(harina.nombre).toBe('Harina 000');
+    expect(harina.activo).toBe(true);
   });
 
   it('no se puede asignar a un usuario nuevo una sucursal de otra empresa', async () => {

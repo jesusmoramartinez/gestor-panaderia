@@ -26,7 +26,7 @@ export class ErrorDeContrato extends Error {
 }
 
 type Opciones<S extends z.ZodType> = {
-  metodo?: 'GET' | 'POST';
+  metodo?: 'GET' | 'POST' | 'PATCH' | 'PUT';
   cuerpo?: unknown;
   /** Con qué esquema validar la respuesta. Es obligatorio a propósito. */
   esquema: S;

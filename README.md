@@ -4,7 +4,7 @@ Sistema web de gestión para una panadería con dos sucursales (una central que
 produce y abastece a la otra). Preparado para multi-empresa desde el diseño.
 
 **Etapa actual:** control de stock de materia prima (insumos).
-**Fase actual:** 3 — unidades de medida y conversiones decimales. ✅
+**Fase actual:** 4 — catálogo de insumos, presentaciones y mínimos por sucursal. ✅
 
 | Documento                                | Para qué                                                                    |
 | ---------------------------------------- | --------------------------------------------------------------------------- |
@@ -109,6 +109,10 @@ curl localhost:3000/api/health
 
 Los tests de integración usan una base aparte, `panaderia_test`, que se borra y
 se vuelve a crear en cada corrida: nunca tocan tus datos de desarrollo.
+
+El seed carga **28 insumos reales de panadería** (harinas, levaduras, lácteos,
+envases) con sus presentaciones de compra y mínimos distintos en cada sucursal.
+Entrá a **Insumos** en la barra de navegación para verlos.
 
 Con la base levantada, `/api/health` responde **200** y `"db": "ok"`.
 Con la base apagada responde **503** y `"db": "error"` con el detalle: el

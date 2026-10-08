@@ -8,6 +8,12 @@
  * importarlo: así quien llama decide contra qué base trabaja.
  */
 import type { PrismaClient } from '../src/generated/prisma/client.js';
+import {
+  CATEGORIAS,
+  type DefinicionInsumo,
+  INSUMOS_LAFERRERE,
+  INSUMOS_VECINA,
+} from './semilla-insumos.js';
 import { hashearPassword } from '../src/lib/password.js';
 
 /**
@@ -52,6 +58,7 @@ export type DefinicionEmpresa = {
   costoIncluyeIva: boolean;
   sucursales: readonly DefinicionSucursal[];
   usuarios: readonly DefinicionUsuario[];
+  insumos: readonly DefinicionInsumo[];
 };
 
 // ===========================================================================
@@ -96,6 +103,7 @@ export const EMPRESAS: readonly DefinicionEmpresa[] = [
         sucursales: ['LAF'],
       },
     ],
+    insumos: INSUMOS_LAFERRERE,
   },
 
   // ===========================================================================
@@ -120,6 +128,7 @@ export const EMPRESAS: readonly DefinicionEmpresa[] = [
         sucursales: ['UNI'],
       },
     ],
+    insumos: INSUMOS_VECINA,
   },
 ];
 
@@ -140,20 +149,20 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
     }
   }
 
-  for (const definicion of EMPRESAS) {
+  for (const definicionEmpresa of EMPRESAS) {
     // Una transacción por empresa: si algo falla a mitad de camino, no queda
     // una empresa sin sucursales ni un usuario sin permisos.
     await prisma.$transaction(async (tx) => {
       const empresa = await tx.empresa.upsert({
-        where: { id: definicion.id },
+        where: { id: definicionEmpresa.id },
         create: {
-          id: definicion.id,
-          nombre: definicion.nombre,
-          costoIncluyeIva: definicion.costoIncluyeIva,
+          id: definicionEmpresa.id,
+          nombre: definicionEmpresa.nombre,
+          costoIncluyeIva: definicionEmpresa.costoIncluyeIva,
         },
         update: {
-          nombre: definicion.nombre,
-          costoIncluyeIva: definicion.costoIncluyeIva,
+          nombre: definicionEmpresa.nombre,
+          costoIncluyeIva: definicionEmpresa.costoIncluyeIva,
         },
       });
 
@@ -171,7 +180,7 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
       }
 
       const sucursalesPorCodigo = new Map<string, string>();
-      for (const sucursal of definicion.sucursales) {
+      for (const sucursal of definicionEmpresa.sucursales) {
         const fila = await tx.sucursal.upsert({
           // empresaId_codigo es el nombre que Prisma le da a la clave única
           // compuesta @@unique([empresaId, codigo]) del schema.
@@ -182,7 +191,7 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
         sucursalesPorCodigo.set(sucursal.codigo, fila.id);
       }
 
-      for (const usuario of definicion.usuarios) {
+      for (const usuario of definicionEmpresa.usuarios) {
         const hash = hashes.get(usuario.email);
         if (!hash) throw new Error(`Falta el hash de ${usuario.email}`);
 
@@ -215,6 +224,71 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
               if (!sucursalId) throw new Error(`No existe la sucursal ${codigo}`);
               return { usuarioId: fila.id, sucursalId };
             }),
+          });
+        }
+      }
+
+      // --- Catálogo: categorías, insumos, presentaciones y mínimos ---
+
+      const categoriasPorNombre = new Map<string, string>();
+      for (const nombre of CATEGORIAS) {
+        const fila = await tx.categoriaInsumo.upsert({
+          where: { empresaId_nombre: { empresaId: empresa.id, nombre } },
+          create: { empresaId: empresa.id, nombre },
+          update: {},
+        });
+        categoriasPorNombre.set(nombre, fila.id);
+      }
+
+      const unidades = await tx.unidadMedida.findMany({
+        where: { empresaId: empresa.id },
+        select: { id: true, codigo: true },
+      });
+      const unidadesPorCodigo = new Map(unidades.map((u) => [u.codigo, u.id]));
+
+      for (const definicion of definicionEmpresa.insumos) {
+        const unidadBaseId = unidadesPorCodigo.get(definicion.unidad);
+        if (!unidadBaseId) throw new Error(`No existe la unidad ${definicion.unidad}`);
+        const categoriaId = categoriasPorNombre.get(definicion.categoria) ?? null;
+
+        const insumo = await tx.insumo.upsert({
+          where: { empresaId_nombre: { empresaId: empresa.id, nombre: definicion.nombre } },
+          create: {
+            empresaId: empresa.id,
+            nombre: definicion.nombre,
+            codigo: definicion.codigo ?? null,
+            categoriaId,
+            unidadBaseId,
+          },
+          update: { codigo: definicion.codigo ?? null, categoriaId, activo: true },
+          select: { id: true },
+        });
+
+        for (const presentacion of definicion.presentaciones) {
+          await tx.presentacionInsumo.upsert({
+            where: { insumoId_nombre: { insumoId: insumo.id, nombre: presentacion.nombre } },
+            create: {
+              empresaId: empresa.id,
+              insumoId: insumo.id,
+              nombre: presentacion.nombre,
+              cantidadBase: presentacion.cantidadBase,
+              esDefault: presentacion.esDefault ?? false,
+            },
+            update: {
+              cantidadBase: presentacion.cantidadBase,
+              esDefault: presentacion.esDefault ?? false,
+              activa: true,
+            },
+          });
+        }
+
+        for (const [codigoSucursal, stockMinimo] of Object.entries(definicion.minimos)) {
+          const sucursalId = sucursalesPorCodigo.get(codigoSucursal);
+          if (!sucursalId) throw new Error(`No existe la sucursal ${codigoSucursal}`);
+          await tx.insumoSucursal.upsert({
+            where: { insumoId_sucursalId: { insumoId: insumo.id, sucursalId } },
+            create: { insumoId: insumo.id, sucursalId, empresaId: empresa.id, stockMinimo },
+            update: { stockMinimo },
           });
         }
       }

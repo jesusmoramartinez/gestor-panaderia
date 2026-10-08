@@ -2,6 +2,9 @@ import { Navigate, Route, Routes } from 'react-router';
 
 import { RutaProtegida } from './components/RutaProtegida';
 import { Inicio } from './routes/Inicio';
+import { InsumoDetalle } from './routes/InsumoDetalle';
+import { InsumoNuevo } from './routes/InsumoNuevo';
+import { Insumos } from './routes/Insumos';
 import { Login } from './routes/Login';
 
 /**
@@ -18,6 +21,11 @@ export function App() {
 
       <Route element={<RutaProtegida />}>
         <Route path="/" element={<Inicio />} />
+        <Route path="/insumos" element={<Insumos />} />
+        {/* El orden importa: /insumos/nuevo tiene que ir ANTES de
+            /insumos/:id, porque si no "nuevo" se tomaría como un id. */}
+        <Route path="/insumos/nuevo" element={<InsumoNuevo />} />
+        <Route path="/insumos/:id" element={<InsumoDetalle />} />
       </Route>
 
       {/* Cualquier URL que no exista vuelve al inicio. */}

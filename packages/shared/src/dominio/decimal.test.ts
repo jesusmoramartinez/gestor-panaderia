@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   aDecimal,
   Decimal,
+  esDecimalValido,
   ESCALA_CANTIDAD,
   ESCALA_DINERO,
   formatearCantidad,
+  normalizarNumero,
   redondearCantidad,
   redondearDinero,
 } from './decimal.js';
@@ -91,5 +93,45 @@ describe('formatearCantidad', () => {
   it('respeta el máximo de decimales que se le pida', () => {
     expect(formatearCantidad('2.123456789', 2)).toBe('2,12');
     expect(formatearCantidad('0.000001', 2)).toBe('0');
+  });
+});
+
+describe('normalizarNumero', () => {
+  it('interpreta la coma como separador decimal (como se escribe acá)', () => {
+    expect(normalizarNumero('2,5')).toBe('2.5');
+    expect(normalizarNumero('0,001')).toBe('0.001');
+  });
+
+  it('descarta los puntos de miles cuando hay coma decimal', () => {
+    expect(normalizarNumero('1.234,5')).toBe('1234.5');
+    expect(normalizarNumero('1.234.567,89')).toBe('1234567.89');
+  });
+
+  it('si no hay coma, el punto es el separador decimal', () => {
+    // Es lo que escribe un input type="number" y lo que manda cualquier API.
+    expect(normalizarNumero('2.5')).toBe('2.5');
+    expect(normalizarNumero('25')).toBe('25');
+  });
+
+  it('ignora los espacios alrededor', () => {
+    expect(normalizarNumero('  2,5  ')).toBe('2.5');
+  });
+
+  it('no valida: devuelve el texto raro tal cual para que falle quien debe', () => {
+    expect(normalizarNumero('abc')).toBe('abc');
+  });
+});
+
+describe('esDecimalValido', () => {
+  it('acepta las formas que puede escribir una persona', () => {
+    for (const valido of ['2.5', '2,5', '1.234,5', '0', '-3', '25']) {
+      expect(esDecimalValido(valido), valido).toBe(true);
+    }
+  });
+
+  it('rechaza lo que no es un número', () => {
+    for (const invalido of ['', '  ', 'abc', '2,5,5', '1..2', '2 kg']) {
+      expect(esDecimalValido(invalido), JSON.stringify(invalido)).toBe(false);
+    }
   });
 });

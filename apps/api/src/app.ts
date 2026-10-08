@@ -4,7 +4,9 @@ import express, { type ErrorRequestHandler, type Express } from 'express';
 import { AppError, describirError } from './lib/errores.js';
 import { auditoriaRouter } from './modules/auditoria/routes.js';
 import { authRouter } from './modules/auth/routes.js';
+import { categoriasRouter } from './modules/categorias/routes.js';
 import { healthRouter } from './modules/health/routes.js';
+import { insumosRouter } from './modules/insumos/routes.js';
 import { unidadesRouter } from './modules/unidades/routes.js';
 import { usuariosRouter } from './modules/usuarios/routes.js';
 
@@ -32,6 +34,8 @@ export function crearApp(): Express {
   app.use('/api', usuariosRouter);
   app.use('/api', auditoriaRouter);
   app.use('/api', unidadesRouter);
+  app.use('/api', categoriasRouter);
+  app.use('/api', insumosRouter);
 
   // Cualquier otra ruta: 404 con la misma forma que el resto de los errores.
   app.use((_req, res) => {

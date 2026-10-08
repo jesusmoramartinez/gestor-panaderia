@@ -1,6 +1,6 @@
 import { formatearFechaArgentina, type UsuarioSesion } from '@panaderia/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Outlet, useNavigate } from 'react-router';
+import { NavLink, Outlet, useNavigate } from 'react-router';
 
 import { cerrarSesion } from '../lib/sesion';
 import { ProveedorSucursalActiva, useSucursalActiva } from './SucursalActiva';
@@ -93,6 +93,32 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
             </button>
           </div>
         </header>
+
+        <nav className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+          <ul className="mx-auto flex max-w-5xl gap-1 px-2">
+            {[
+              { a: '/', texto: 'Inicio' },
+              { a: '/insumos', texto: 'Insumos' },
+            ].map((item) => (
+              <li key={item.a}>
+                {/* NavLink sabe si su ruta es la activa y nos pasa isActive. */}
+                <NavLink
+                  to={item.a}
+                  end={item.a === '/'}
+                  className={({ isActive }) =>
+                    `flex min-h-12 items-center border-b-2 px-4 font-medium transition ${
+                      isActive
+                        ? 'border-corteza text-corteza'
+                        : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-50'
+                    }`
+                  }
+                >
+                  {item.texto}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         <main className="mx-auto max-w-5xl p-4">
           <Outlet />
