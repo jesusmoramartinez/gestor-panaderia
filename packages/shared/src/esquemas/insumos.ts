@@ -120,12 +120,24 @@ export const ParametrosSucursalSchema = z
   );
 export type ParametrosSucursalInput = z.infer<typeof ParametrosSucursalSchema>;
 
+/**
+ * Cuántos insumos puede devolver UN pedido del listado, como máximo.
+ *
+ * Es una constante exportada y no un 100 escrito en el esquema por un bug real:
+ * tres pantallas pedían `limite=200` para llenar un desplegable, la API las
+ * rechazaba con 400 y el desplegable quedaba vacío sin decir nada. Con la
+ * constante compartida, el front y la API no pueden volver a desincronizarse.
+ *
+ * 100 alcanza para un desplegable: el cliente tiene menos de 100 insumos (C-1).
+ */
+export const LIMITE_MAXIMO_LISTADO = 100;
+
 /** Filtros del listado. Todo llega como texto en el query string. */
 export const FiltroInsumosSchema = z.object({
   busqueda: z.string().trim().max(80).optional(),
   categoriaId: z.uuid().optional(),
   incluirInactivos: z.stringbool().default(false),
-  limite: z.coerce.number().int().min(1).max(100).default(25),
+  limite: z.coerce.number().int().min(1).max(LIMITE_MAXIMO_LISTADO).default(25),
   desplazamiento: z.coerce.number().int().min(0).default(0),
 });
 export type FiltroInsumos = z.infer<typeof FiltroInsumosSchema>;

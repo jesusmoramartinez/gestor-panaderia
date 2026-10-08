@@ -8,6 +8,7 @@ import {
   formatearFechaArgentina,
   type InsumoDeProveedor,
   type ProveedorDetalle as Proveedor,
+  LIMITE_MAXIMO_LISTADO,
 } from '@panaderia/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -358,8 +359,8 @@ function InsumosDelProveedor({
   // El catálogo para el selector. Solo los activos: no tiene sentido asociar
   // un insumo dado de baja (la API además lo rechaza).
   const insumos = useQuery({
-    queryKey: ['insumos', { limite: 200, desplazamiento: 0 }],
-    queryFn: () => listarInsumos({ limite: 200, desplazamiento: 0 }),
+    queryKey: ['insumos', { limite: LIMITE_MAXIMO_LISTADO, desplazamiento: 0 }],
+    queryFn: () => listarInsumos({ limite: LIMITE_MAXIMO_LISTADO, desplazamiento: 0 }),
   });
 
   // SELECT DEPENDIENTE: las presentaciones son las del insumo elegido, así que
@@ -423,6 +424,11 @@ function InsumosDelProveedor({
           noValidate
           className="mt-5 space-y-3 border-t border-slate-100 pt-5 dark:border-slate-800"
         >
+          {insumos.isError && (
+            <MensajeError>
+              No se pudo cargar la lista de insumos: {insumos.error.message}
+            </MensajeError>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <Campo etiqueta="Insumo" error={form.formState.errors.insumoId?.message}>
               <select className={CLASE_CONTROL} {...form.register('insumoId')}>

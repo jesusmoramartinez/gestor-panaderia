@@ -5,6 +5,7 @@ import {
   conMotivoObligatorio,
   formatearCantidad,
   type ResultadoCarga,
+  LIMITE_MAXIMO_LISTADO,
 } from '@panaderia/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -128,8 +129,8 @@ export function CargarMovimiento({ clase }: { clase: Clase }) {
   const [resultado, setResultado] = useState<ResultadoCarga | null>(null);
 
   const insumos = useQuery({
-    queryKey: ['insumos', { limite: 200, desplazamiento: 0 }],
-    queryFn: () => listarInsumos({ limite: 200, desplazamiento: 0 }),
+    queryKey: ['insumos', { limite: LIMITE_MAXIMO_LISTADO, desplazamiento: 0 }],
+    queryFn: () => listarInsumos({ limite: LIMITE_MAXIMO_LISTADO, desplazamiento: 0 }),
   });
   const unidades = useQuery({ queryKey: ['unidades'], queryFn: listarUnidades });
   const motivos = useQuery({
@@ -242,6 +243,13 @@ export function CargarMovimiento({ clase }: { clase: Clase }) {
       >
         <Tarjeta titulo="Qué y cuánto">
           <div className="space-y-3">
+            {/* Si la lista no carga, decirlo: un desplegable vacío sin
+                explicación fue exactamente el bug del límite de 200. */}
+            {insumos.isError && (
+              <MensajeError>
+                No se pudo cargar la lista de insumos: {insumos.error.message}
+              </MensajeError>
+            )}
             {lineas.fields.map((campo, indice) => (
               <div
                 key={campo.id}

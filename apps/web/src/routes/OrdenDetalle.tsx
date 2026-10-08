@@ -1,5 +1,6 @@
 import {
   type AccionOrden,
+  aDecimal,
   formatearCantidad,
   formatearDia,
   formatearDinero,
@@ -183,7 +184,15 @@ export function OrdenDetalle() {
                 </span>
                 <span className="ml-auto text-right text-sm">
                   <span className="block">
-                    llegaron {formatearCantidad(linea.recibidoBase)} {unidad}
+                    {/* En la misma unidad en que se pidió: "llegaron 4 × Bolsa"
+                        se compara de un vistazo con "faltan 6 × Bolsa". */}
+                    llegaron{' '}
+                    {textoCantidad(
+                      aDecimal(linea.recibidoBase).dividedBy(linea.factorConversion).toString(),
+                      linea.presentacion,
+                      unidad,
+                      formatearCantidad,
+                    )}
                   </span>
                   <span
                     className={`block font-semibold ${

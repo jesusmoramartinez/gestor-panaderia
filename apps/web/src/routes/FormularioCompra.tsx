@@ -12,6 +12,7 @@ import {
   normalizarNumero,
   type OrdenDetalle,
   type Plantilla,
+  LIMITE_MAXIMO_LISTADO,
 } from '@panaderia/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -226,8 +227,8 @@ export function FormularioCompra({ modo }: { modo: ModoFormulario }) {
     queryFn: () => listarProveedores({}),
   });
   const insumos = useQuery({
-    queryKey: ['insumos', { limite: 200, desplazamiento: 0 }],
-    queryFn: () => listarInsumos({ limite: 200, desplazamiento: 0 }),
+    queryKey: ['insumos', { limite: LIMITE_MAXIMO_LISTADO, desplazamiento: 0 }],
+    queryFn: () => listarInsumos({ limite: LIMITE_MAXIMO_LISTADO, desplazamiento: 0 }),
   });
 
   const esquema =
@@ -527,6 +528,11 @@ export function FormularioCompra({ modo }: { modo: ModoFormulario }) {
 
         <Tarjeta titulo="Qué">
           <div className="space-y-3">
+            {insumos.isError && (
+              <MensajeError>
+                No se pudo cargar la lista de insumos: {insumos.error.message}
+              </MensajeError>
+            )}
             {lineas.fields.map((campo, indice) => (
               <FilaLinea
                 key={campo.id}
@@ -782,10 +788,18 @@ function FilaLinea({
       </Campo>
 
       <Campo etiqueta="Presentación" error={errores?.presentacionId?.message}>
+        {/* CONTROLADO (con `value`) a propósito. Al elegir el insumo, la
+            presentación se precarga ANTES de que lleguen sus opciones (vienen
+            de otro pedido). Un <select> no controlado se queda mostrando la
+            primera opción aunque el formulario tenga otra: la pantalla decía
+            "Suelto, en kg" y la orden se guardaba en bolsas. Con `value`,
+            React lo vuelve a pintar cuando aparecen las opciones. Lo encontró
+            la prueba en el navegador, no los tests de la API. */}
         <select
           className={CLASE_CONTROL}
           disabled={insumoId === ''}
           {...form.register(`${ruta}.presentacionId`)}
+          value={presentacionId}
         >
           <option value="">{unidad === '' ? 'Unidad base' : `Suelto, en ${unidad}`}</option>
           {presentaciones.map((p) => (
