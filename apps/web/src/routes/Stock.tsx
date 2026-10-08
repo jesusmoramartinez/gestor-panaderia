@@ -59,7 +59,7 @@ export function Stock() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Stock</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             {activa.nombre}
             {stock.isPending ? ' · cargando...' : ''}
           </p>
@@ -148,7 +148,7 @@ export function Stock() {
       {stock.isError && <MensajeError>{stock.error.message}</MensajeError>}
 
       {stock.data?.items.length === 0 && (
-        <p className="rounded-2xl bg-white p-8 text-center text-slate-500 shadow-sm dark:bg-slate-900 dark:text-slate-400">
+        <p className="rounded-2xl bg-white p-8 text-center text-slate-600 dark:text-slate-400 shadow-sm dark:bg-slate-900">
           {soloAlertas
             ? 'No hay nada por debajo del mínimo. 👌'
             : 'No hay insumos que coincidan con la búsqueda.'}
@@ -172,7 +172,7 @@ function Resumen({
   return (
     <div className="rounded-2xl bg-white p-4 text-center shadow-sm dark:bg-slate-900">
       <p className={`text-2xl font-bold tabular-nums ${color}`}>{String(cantidad)}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400">{etiqueta}</p>
+      <p className="text-xs text-slate-600 dark:text-slate-400">{etiqueta}</p>
     </div>
   );
 }
@@ -193,7 +193,7 @@ function Tabla({ items }: { items: readonly FilaStock[] }) {
                 <span className="font-medium">{item.nombre}</span>
                 <Saldo valor={item.saldo} unidad={item.unidadBaseCodigo} />
               </div>
-              <div className="mt-1 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+              <div className="mt-1 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                 <Semaforo estado={item.estado} negativo={item.saldo.startsWith('-')} />
                 <span>
                   mínimo {formatearCantidad(item.stockMinimo)} {item.unidadBaseCodigo}
@@ -205,7 +205,7 @@ function Tabla({ items }: { items: readonly FilaStock[] }) {
       </ul>
 
       <table className="hidden w-full text-left md:table">
-        <thead className="border-b border-slate-200 text-xs tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:text-slate-400">
+        <thead className="border-b border-slate-200 text-xs tracking-wide text-slate-600 dark:text-slate-400 uppercase dark:border-slate-700">
           <tr>
             <th className="px-4 py-3 font-semibold">Insumo</th>
             <th className="px-4 py-3 font-semibold">Categoría</th>
@@ -227,7 +227,9 @@ function Tabla({ items }: { items: readonly FilaStock[] }) {
                 >
                   <span className="font-medium">{item.nombre}</span>
                   {item.ubicacion !== null && (
-                    <span className="text-xs text-slate-400">{item.ubicacion}</span>
+                    <span className="text-xs text-slate-600 dark:text-slate-400">
+                      {item.ubicacion}
+                    </span>
                   )}
                 </Link>
               </td>

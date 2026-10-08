@@ -14,6 +14,7 @@ import type { FormEvent, ReactNode } from 'react';
 export const CLASE_CONTROL =
   'min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-slate-900 ' +
   'focus:border-corteza focus:outline-2 focus:outline-corteza/40 ' +
+  'dark:focus:border-corteza-claro dark:focus:outline-corteza-claro/40 ' +
   'disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
 
 export const CLASE_BOTON_PRIMARIO =
@@ -48,7 +49,7 @@ export function Campo({
       </span>
       {children}
       {ayuda !== undefined && error === undefined && (
-        <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{ayuda}</span>
+        <span className="mt-1 block text-xs text-slate-600 dark:text-slate-400">{ayuda}</span>
       )}
       {error !== undefined && (
         <span role="alert" className="mt-1 block text-sm text-red-700 dark:text-red-400">
@@ -62,7 +63,7 @@ export function Campo({
 export function Tarjeta({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
     <section className="rounded-2xl bg-white p-5 shadow-sm dark:bg-slate-900">
-      <h2 className="text-sm font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
+      <h2 className="text-sm font-semibold tracking-wide text-slate-600 dark:text-slate-400 uppercase">
         {titulo}
       </h2>
       <div className="mt-4">{children}</div>

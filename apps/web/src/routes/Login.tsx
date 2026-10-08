@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 
+import { SelectorTema } from '../components/Tema';
 import { detallesPorCampo, ErrorDeApi } from '../lib/api';
 import { CLAVE_SESION, iniciarSesion } from '../lib/sesion';
 
@@ -58,14 +59,19 @@ export function Login() {
         : null;
 
   return (
-    <main className="grid min-h-dvh place-items-center bg-masa p-4 dark:bg-horno">
+    <main className="relative grid min-h-dvh place-items-center bg-masa p-4 dark:bg-horno">
+      {/* El tema se puede cambiar ANTES de entrar: si la pantalla no se lee,
+          el problema empieza acá. */}
+      <div className="absolute top-4 right-4">
+        <SelectorTema />
+      </div>
       <form
         onSubmit={enviar}
         noValidate
         className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-lg sm:p-8 dark:bg-slate-900"
       >
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">{NOMBRE_SISTEMA}</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Ingresá para continuar</p>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Ingresá para continuar</p>
 
         <div className="mt-6 space-y-4">
           <Campo etiqueta="Email" error={errorDe('email')}>

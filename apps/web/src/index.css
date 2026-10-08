@@ -2,15 +2,68 @@
    al postcss.config.js y a las tres directivas @tailwind de la v3. */
 @import 'tailwindcss';
 
-/* Tokens propios del proyecto. En Tailwind v4 el tema se define en CSS
-   y queda disponible como clases (por ejemplo bg-masa). */
+/**
+ * EL MODO OSCURO LO DECIDE LA PERSONA, NO EL SISTEMA OPERATIVO.
+ *
+ * Por defecto, el prefijo `dark:` de Tailwind responde a la preferencia del
+ * sistema (`prefers-color-scheme`), y entonces no hay forma de elegir: si tu
+ * Linux está en oscuro, la aplicación está en oscuro y listo.
+ *
+ * Con este `@custom-variant`, `dark:` pasa a responder al atributo
+ * `data-tema="oscuro"` del <html>. Quien lo pone es el ProveedorTema, que
+ * resuelve la opción "automático" consultando el sistema una sola vez (y
+ * escuchando si cambia). Así "automático" sigue existiendo, pero como UNA de
+ * las tres opciones y no como la única.
+ */
+@custom-variant dark (&:where([data-tema='oscuro'], [data-tema='oscuro'] *));
+
 @theme {
-  --color-masa: #f7f1e5;
-  --color-corteza: #b4712c;
-  --color-horno: #2b1d12;
+  /* --- Fondos ---------------------------------------------------------- */
+  /* Crema de masa cruda. Se aclaró respecto del original (#f7f1e5) para
+     levantar el contraste del texto gris encima. */
+  --color-masa: #faf7f1;
+  /* Marrón de horno, MÁS OSCURO que las tarjetas (slate-900) a propósito: así
+     las tarjetas se leen como algo apoyado sobre la página y no al revés. */
+  --color-horno: #14100c;
+
+  /* --- Color de marca -------------------------------------------------- */
+  /* Corteza de pan. Hay DOS tonos y no uno, y la razón es el contraste:
+     el mismo marrón no puede leerse bien sobre blanco y sobre negro.
+
+       corteza        sobre blanco → 6,2:1   ✓ AA
+                      con texto blanco → 6,2:1 ✓ AA (botón primario)
+       corteza-claro  sobre slate-900 → 7,5:1 ✓ AAA
+
+     El tono original (#b4712c) daba 3,9:1 sobre blanco: por debajo del 4,5:1
+     que pide WCAG AA para texto normal. Se veía "lavado", y era literalmente
+     la queja. */
+  --color-corteza: #8a5420;
+  --color-corteza-claro: #d99a4e;
+}
+
+/**
+ * `color-scheme` le dice al navegador de qué color dibujar lo que NO
+ * controlamos con CSS: el selector nativo de <select>, el calendario de
+ * <input type="datetime-local">, las barras de scroll y el autocompletado.
+ *
+ * Sin esto, en modo oscuro el desplegable de una lista se abre blanco
+ * brillante en medio de una pantalla negra. Importa más de lo que parece en
+ * este proyecto, porque usamos elementos nativos a propósito.
+ */
+:root[data-tema='claro'] {
+  color-scheme: light;
+}
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
 }
 
 html {
   /* Evita el zoom automático de iOS al tocar un input en la tablet. */
   -webkit-text-size-adjust: 100%;
+
+  /* 17px en lugar de los 16 por defecto. Todo el sistema de medidas de
+     Tailwind está en `rem`, así que esto agranda texto Y espaciados de forma
+     proporcional: los destinos táctiles (min-h-12 = 3rem) pasan de 48 a 51 px.
+     Se usa en una tablet en el depósito, con las manos enharinadas. */
+  font-size: 17px;
 }

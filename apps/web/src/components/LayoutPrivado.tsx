@@ -5,6 +5,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { usePuede } from '../hooks/useSesion';
 import { cerrarSesion } from '../lib/sesion';
 import { ProveedorSucursalActiva, useSucursalActiva } from './SucursalActiva';
+import { SelectorTema } from './Tema';
 
 const ETIQUETA_ROL: Record<UsuarioSesion['rol'], string> = {
   DUENO: 'Dueño',
@@ -79,12 +80,13 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
           <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 p-4">
             <div className="mr-auto">
               <p className="font-bold text-slate-900 dark:text-slate-50">{sesion.empresa.nombre}</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-sm text-slate-600 dark:text-slate-400">
                 {sesion.nombre} · {ETIQUETA_ROL[sesion.rol]}
               </p>
             </div>
 
             <SelectorSucursal />
+            <SelectorTema />
 
             <button
               type="button"
@@ -115,7 +117,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
                   className={({ isActive }) =>
                     `flex min-h-12 items-center border-b-2 px-4 font-medium transition ${
                       isActive
-                        ? 'border-corteza text-corteza'
+                        ? 'border-corteza dark:border-corteza-claro text-corteza dark:text-corteza-claro'
                         : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-50'
                     }`
                   }
@@ -131,7 +133,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
           <Outlet />
         </main>
 
-        <footer className="mx-auto max-w-5xl px-4 pb-6 text-xs text-slate-400">
+        <footer className="mx-auto max-w-5xl px-4 pb-6 text-xs text-slate-600 dark:text-slate-400">
           Hora del sistema: {formatearFechaArgentina(new Date())} ({sesion.empresa.zonaHoraria})
         </footer>
       </div>

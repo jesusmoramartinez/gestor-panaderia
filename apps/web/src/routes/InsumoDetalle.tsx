@@ -69,13 +69,16 @@ export function InsumoDetalle() {
   });
 
   if (consulta.isPending) {
-    return <p className="text-slate-500 dark:text-slate-400">Cargando insumo...</p>;
+    return <p className="text-slate-600 dark:text-slate-400">Cargando insumo...</p>;
   }
   if (consulta.isError || !consulta.data) {
     return (
       <div className="space-y-3">
         <MensajeError>{consulta.error?.message ?? 'No se encontró el insumo.'}</MensajeError>
-        <Link to="/insumos" className="text-sm text-corteza hover:underline">
+        <Link
+          to="/insumos"
+          className="text-sm text-corteza dark:text-corteza-claro hover:underline"
+        >
           ← Volver a insumos
         </Link>
       </div>
@@ -87,7 +90,10 @@ export function InsumoDetalle() {
   return (
     <div className="space-y-4">
       <div>
-        <Link to="/insumos" className="text-sm text-corteza hover:underline">
+        <Link
+          to="/insumos"
+          className="text-sm text-corteza dark:text-corteza-claro hover:underline"
+        >
           ← Volver a insumos
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
@@ -123,7 +129,7 @@ export function InsumoDetalle() {
               </button>
             ))}
         </div>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           El stock se lleva en <strong>{insumo.unidadBase.nombre.toLowerCase()}</strong> (
           {insumo.unidadBase.codigo})
         </p>
@@ -308,7 +314,7 @@ function Presentaciones({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: 
 
   return (
     <Tarjeta titulo="Presentaciones de compra">
-      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
         Cómo se compra este insumo. Al recibir una compra vas a cargar la cantidad en estas
         unidades, y el sistema la convierte a {insumo.unidadBase.codigo} para el stock.
       </p>
@@ -405,14 +411,18 @@ function FilaPresentacion({
 }) {
   return (
     <li className="flex min-h-14 flex-wrap items-center gap-3 py-2">
-      <span className={presentacion.activa ? 'font-medium' : 'text-slate-400 line-through'}>
+      <span
+        className={
+          presentacion.activa ? 'font-medium' : 'text-slate-600 dark:text-slate-400 line-through'
+        }
+      >
         {presentacion.nombre}
       </span>
-      <span className="text-sm text-slate-500 dark:text-slate-400">
+      <span className="text-sm text-slate-600 dark:text-slate-400">
         trae {formatearCantidad(presentacion.cantidadBase)} {unidad}
       </span>
       {presentacion.esDefault && (
-        <span className="rounded-full bg-corteza/15 px-2 py-0.5 text-xs font-semibold text-corteza">
+        <span className="rounded-full bg-corteza/15 px-2 py-0.5 text-xs font-semibold text-corteza dark:text-corteza-claro">
           por defecto
         </span>
       )}
@@ -426,7 +436,7 @@ function FilaPresentacion({
               onClick={() => {
                 onCambiar({ esDefault: true });
               }}
-              className="min-h-10 rounded-lg px-3 text-sm text-corteza hover:underline disabled:opacity-50"
+              className="min-h-10 rounded-lg px-3 text-sm text-corteza dark:text-corteza-claro hover:underline disabled:opacity-50"
             >
               Usar por defecto
             </button>
@@ -437,7 +447,7 @@ function FilaPresentacion({
             onClick={() => {
               onCambiar({ activa: !presentacion.activa });
             }}
-            className="min-h-10 rounded-lg px-3 text-sm text-slate-500 hover:underline disabled:opacity-50 dark:text-slate-400"
+            className="min-h-10 rounded-lg px-3 text-sm text-slate-600 dark:text-slate-400 hover:underline disabled:opacity-50"
           >
             {presentacion.activa ? 'Desactivar' : 'Reactivar'}
           </button>
@@ -452,7 +462,7 @@ function FilaPresentacion({
 function MinimosPorSucursal({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: boolean }) {
   return (
     <Tarjeta titulo="Stock mínimo por sucursal">
-      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
         Por debajo del mínimo, el insumo va a aparecer en la lista de reposición de esa sucursal. La
         central suele necesitar más que el local.
       </p>
@@ -523,7 +533,9 @@ function FormularioParametros({
     >
       <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">
         {parametros.sucursalNombre}
-        <span className="ml-2 font-mono text-xs text-slate-400">{parametros.sucursalCodigo}</span>
+        <span className="ml-2 font-mono text-xs text-slate-600 dark:text-slate-400">
+          {parametros.sucursalCodigo}
+        </span>
       </h3>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -622,12 +634,14 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
 
   return (
     <Tarjeta titulo="Quién me lo provee">
-      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
         El <strong>preferido</strong> es el que se va a sugerir cuando este insumo aparezca en la
         lista de reposición.
       </p>
 
-      {consulta.isPending && <p className="text-sm text-slate-500">Cargando proveedores...</p>}
+      {consulta.isPending && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">Cargando proveedores...</p>
+      )}
       {consulta.isError && <MensajeError>{consulta.error.message}</MensajeError>}
 
       {consulta.isSuccess && filas.length === 0 && (
@@ -646,19 +660,19 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
                 className={
                   fila.activo
                     ? 'font-medium hover:underline'
-                    : 'text-slate-400 line-through hover:underline'
+                    : 'text-slate-600 dark:text-slate-400 line-through hover:underline'
                 }
               >
                 {fila.proveedor.nombre}
               </Link>
 
-              <span className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="text-sm text-slate-600 dark:text-slate-400">
                 {fila.presentacion === null
                   ? `por ${unidad}`
                   : `${fila.presentacion.nombre} (${formatearCantidad(fila.presentacion.cantidadBase)} ${unidad})`}
               </span>
 
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-600 dark:text-slate-400">
                 {fila.proveedor.diasEntrega === null
                   ? 'entrega: sin dato'
                   : fila.proveedor.diasEntrega === 0
@@ -667,21 +681,21 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
               </span>
 
               {fila.esPreferido && (
-                <span className="rounded-full bg-corteza/15 px-2 py-0.5 text-xs font-semibold text-corteza">
+                <span className="rounded-full bg-corteza/15 px-2 py-0.5 text-xs font-semibold text-corteza dark:text-corteza-claro">
                   preferido
                 </span>
               )}
 
               <span className="ml-auto text-right">
                 {fila.ultimoPrecio === null ? (
-                  <span className="text-sm text-slate-400">sin precio</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-400">sin precio</span>
                 ) : (
                   <>
                     <span className="font-semibold tabular-nums">
                       {formatearDinero(fila.ultimoPrecio)}
                     </span>
                     {fila.ultimoPrecioAt !== null && (
-                      <span className="block text-xs text-slate-400">
+                      <span className="block text-xs text-slate-600 dark:text-slate-400">
                         {formatearFechaArgentina(new Date(fila.ultimoPrecioAt))}
                       </span>
                     )}
@@ -699,7 +713,7 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
                       asociacionId: fila.id,
                     });
                   }}
-                  className="min-h-10 w-full rounded-lg px-3 text-left text-sm text-corteza hover:underline disabled:opacity-50 sm:w-auto sm:text-right"
+                  className="min-h-10 w-full rounded-lg px-3 text-left text-sm text-corteza dark:text-corteza-claro hover:underline disabled:opacity-50 sm:w-auto sm:text-right"
                 >
                   Marcar preferido
                 </button>

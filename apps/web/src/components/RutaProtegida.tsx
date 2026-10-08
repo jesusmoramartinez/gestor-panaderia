@@ -20,7 +20,7 @@ export function RutaProtegida() {
   if (sesion.isPending) {
     return (
       <div className="grid min-h-dvh place-items-center bg-masa dark:bg-horno">
-        <p className="text-slate-500 dark:text-slate-400">Verificando sesión...</p>
+        <p className="text-slate-600 dark:text-slate-400">Verificando sesión...</p>
       </div>
     );
   }

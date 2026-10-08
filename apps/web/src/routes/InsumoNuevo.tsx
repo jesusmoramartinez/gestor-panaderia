@@ -48,7 +48,10 @@ export function InsumoNuevo() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div>
-        <Link to="/insumos" className="text-sm text-corteza hover:underline">
+        <Link
+          to="/insumos"
+          className="text-sm text-corteza dark:text-corteza-claro hover:underline"
+        >
           ← Volver a insumos
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">Nuevo insumo</h1>
@@ -117,7 +120,7 @@ export function InsumoNuevo() {
           </button>
         </div>
 
-        <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-center text-sm text-slate-600 dark:text-slate-400">
           Las presentaciones de compra y los mínimos por sucursal se configuran después de crearlo.
         </p>
       </form>

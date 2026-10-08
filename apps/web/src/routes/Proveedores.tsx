@@ -28,7 +28,7 @@ export function Proveedores() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Proveedores</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             {proveedores.isPending
               ? 'Cargando...'
               : `${String(proveedores.data?.length ?? 0)} en la lista`}
@@ -72,7 +72,7 @@ export function Proveedores() {
       {proveedores.isError && <MensajeError>{proveedores.error.message}</MensajeError>}
 
       {proveedores.data?.length === 0 && (
-        <p className="rounded-2xl bg-white p-8 text-center text-slate-500 shadow-sm dark:bg-slate-900 dark:text-slate-400">
+        <p className="rounded-2xl bg-white p-8 text-center text-slate-600 dark:text-slate-400 shadow-sm dark:bg-slate-900">
           No hay proveedores que coincidan con la búsqueda.
         </p>
       )}
@@ -106,7 +106,7 @@ function Lista({ items }: { items: readonly ProveedorResumen[] }) {
                 <span className="font-medium">{proveedor.nombre}</span>
                 {!proveedor.activo && <EtiquetaInactivo />}
               </div>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 {String(proveedor.cantidadInsumos)} insumos · {textoEntrega(proveedor.diasEntrega)}
                 {proveedor.telefono !== null && ` · ${proveedor.telefono}`}
               </p>
@@ -116,7 +116,7 @@ function Lista({ items }: { items: readonly ProveedorResumen[] }) {
       </ul>
 
       <table className="hidden w-full text-left md:table">
-        <thead className="border-b border-slate-200 text-xs tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:text-slate-400">
+        <thead className="border-b border-slate-200 text-xs tracking-wide text-slate-600 dark:text-slate-400 uppercase dark:border-slate-700">
           <tr>
             <th className="px-4 py-3 font-semibold">Proveedor</th>
             <th className="px-4 py-3 font-semibold">Contacto</th>
@@ -137,7 +137,9 @@ function Lista({ items }: { items: readonly ProveedorResumen[] }) {
                 >
                   <span className="font-medium">{proveedor.nombre}</span>
                   {proveedor.cuit !== null && (
-                    <span className="font-mono text-xs text-slate-400">{proveedor.cuit}</span>
+                    <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                      {proveedor.cuit}
+                    </span>
                   )}
                   {!proveedor.activo && <EtiquetaInactivo />}
                 </Link>

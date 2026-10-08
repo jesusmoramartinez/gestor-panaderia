@@ -52,7 +52,10 @@ export function ProveedorNuevo() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div>
-        <Link to="/proveedores" className="text-sm text-corteza hover:underline">
+        <Link
+          to="/proveedores"
+          className="text-sm text-corteza dark:text-corteza-claro hover:underline"
+        >
           ← Volver a proveedores
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
@@ -177,7 +180,7 @@ export function ProveedorNuevo() {
           </button>
         </div>
 
-        <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-center text-sm text-slate-600 dark:text-slate-400">
           Los insumos que le compras se cargan después de crearlo.
         </p>
       </form>

@@ -217,13 +217,13 @@ export function CargarMovimiento({ clase }: { clase: Clase }) {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <Link to="/stock" className="text-sm text-corteza hover:underline">
+        <Link to="/stock" className="text-sm text-corteza dark:text-corteza-claro hover:underline">
           ← Volver al stock
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
           {config.titulo}
         </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           {config.ayuda} Sucursal: <strong>{activa.nombre}</strong>.
         </p>
       </div>
@@ -314,7 +314,7 @@ export function CargarMovimiento({ clase }: { clase: Clase }) {
                     onClick={() => {
                       lineas.remove(indice);
                     }}
-                    className="min-h-12 rounded-xl px-4 text-slate-500 hover:bg-slate-100 disabled:opacity-30 dark:text-slate-400 dark:hover:bg-slate-800"
+                    className="min-h-12 rounded-xl px-4 text-slate-600 dark:text-slate-400 hover:bg-slate-100 disabled:opacity-30 dark:hover:bg-slate-800"
                   >
                     Quitar
                   </button>

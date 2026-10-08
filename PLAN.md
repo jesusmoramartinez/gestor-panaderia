@@ -1075,6 +1075,113 @@ Recetas, producción, productos terminados, POS/caja, pedidos, clientes, venta m
 
 Hacelas **antes de la Fase 4** (la Fase 0 a 3 no dependen de ninguna). Para cada una hay un supuesto por defecto, así ninguna respuesta pendiente bloquea el trabajo: si el cliente no contesta, seguimos con el supuesto y queda documentado.
 
+> **IMPORTANTE:** la sección **5.1** tiene las respuestas que ya dio el cliente. Donde hay respuesta, **manda la respuesta** y el supuesto de las tablas de abajo queda sin efecto.
+
+---
+
+### 5.1 Respuestas del cliente — 8 de octubre de 2026
+
+| #    | Respuesta                                                                                                                                                               | Qué cambia                                                                                                                                                                                                                  |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C-1  | No lo sabe con precisión; **menos de 100** insumos.                                                                                                                     | Confirma el diseño: con <100 el listado paginado y el buscador alcanzan. **No** hace falta importación masiva ni conteo rotativo por categoría.                                                                             |
+| C-2  | Depende del insumo: **el sistema tiene que dejar elegir la unidad** (gramos, litros, otra). Al proveedor le compra **por cantidad / por mayor**.                        | Ya resuelto: la unidad base la elige quien da de alta el insumo, y la presentación guarda cuántas unidades base trae el bulto. Ver la investigación en **5.2**.                                                             |
+| C-3  | No lo sabe.                                                                                                                                                             | **La investigación dice que SÍ pasa** (el aceite se compra en litros y en la receta se pesa). La solución no necesita densidad en el sistema: se resuelve en la **presentación**. Ver **5.2**, es lo más importante de acá. |
+| C-4  | Sí, lo anota en algún lado, pero **tiene que poder cargarse a mano desde la web**.                                                                                      | La carga manual es el camino principal. La importación desde Excel queda como mejora futura, no como requisito.                                                                                                             |
+| C-5  | Los identifica **por nombre**.                                                                                                                                          | Ya resuelto: el código del insumo es opcional.                                                                                                                                                                              |
+| C-6  | No sabe cuántos, pero si le compra el mismo insumo a dos proveedores **quiere ver cuál salió más barato o más caro**.                                                   | **Requisito nuevo:** en "quién me lo provee" hay que marcar el precio más barato y el más caro. Pendiente, anotado en 5.3.                                                                                                  |
+| C-7  | El precio **se carga cada vez que carga una compra** a ese proveedor.                                                                                                   | Confirma la Fase 8: la recepción actualiza `ultimo_precio` y `ultimo_precio_at` sola. El precio cargado a mano en la Fase 5 es solo el arranque.                                                                            |
+| C-8  | No sabe los plazos, pero al pedir un lote **quiere cargar precio y fecha de entrega estimada**, y que el sistema contemple que no entregue, o que entregue **parcial**. | Confirma la orden de compra de la Fase 8 y **agrega el campo `fecha_entrega_estimada`**. La entrega parcial ya estaba prevista.                                                                                             |
+| C-9  | Quiere poder cargar el precio al pedir **y** al recibir, **mejor en el momento en que lo solicita**.                                                                    | La orden de compra lleva precio por línea, y la recepción puede corregirlo. Fase 8.                                                                                                                                         |
+| C-10 | Debe indicar **cuánto entregó y cuánto falta**, y lo que falta **queda pendiente** (puede llegar otro día, otra vez parcial).                                           | Confirma la orden `PARCIAL` con saldo pendiente y varias recepciones por orden. Fase 8.                                                                                                                                     |
+| C-11 | **Que el sistema no contemple nada de IVA ni condición fiscal por ahora.**                                                                                              | **Saca el IVA del alcance.** El campo `empresa.costo_incluye_iva` queda sin usar (no se borra: la columna ya existe y borrarla es una migración sin beneficio). El costo es, simplemente, lo que pagó.                      |
+| C-12 | No contemplar devoluciones al proveedor.                                                                                                                                | Confirma: fuera de alcance. Si llega mal, se anula la recepción o se carga una merma.                                                                                                                                       |
+| C-13 | **Solo el dueño** compra. Y el sistema lo va a usar **mayormente el dueño**, al menos al principio.                                                                     | Los permisos de compra de la Fase 8 son solo `DUENO`. Y cambia una prioridad de diseño: **el camino del dueño tiene que ser el más corto**, no el del empleado.                                                             |
+| C-14 | Pregunta si la materia prima **no debería descontarse sola por la producción de las recetas**.                                                                          | **La expectativa más importante de registrar.** Sí, así debería ser — y es exactamente el módulo de producción, que está **fuera de esta etapa**. El consumo manual de la Fase 6 es el puente hasta entonces. Ver 5.3.      |
+| C-15 | **No piensa contar**: espera que el control de stock lo evite. Quiere poder **hacer un ajuste cuando quiera, con una nota**.                                            | **Cambia la Fase 7.** El conteo físico con documento y estados deja de ser el camino principal. Ver la Fase 7 reescrita.                                                                                                    |
+| C-16 | La carga inicial **la hace él o el dueño, a mano**, con planilla o sin planilla.                                                                                        | Confirma el saldo inicial manual de la Fase 6. No hace falta un conteo físico para arrancar.                                                                                                                                |
+| C-17 | **Tiene que poder configurarse: el dueño decide.**                                                                                                                      | Hoy ya se resuelve con la fecha del movimiento editable. Un "hasta qué hora es hoy" configurable queda anotado como mejora (5.3).                                                                                           |
+| C-18 | **Sí** transfiere insumos entre sucursales.                                                                                                                             | Confirma la Fase 9.                                                                                                                                                                                                         |
+| C-19 | **Sí**: el que recibe confirma.                                                                                                                                         | Confirma los dos pasos de la transferencia (enviada → recibida).                                                                                                                                                            |
+
+Sin responder todavía: **C-20 a C-30**. Siguen con su supuesto.
+
+---
+
+### 5.2 Investigación: cómo compra sus insumos una panadería _(para C-2 y C-3)_
+
+Esto se buscó en distribuidores mayoristas argentinos reales y en material técnico de panadería. Lo que importa para el sistema no son los precios (cambian), sino **en qué viene cada cosa**.
+
+#### En qué se compra
+
+| Insumo                      | Presentación típica del mayorista                | Unidad base razonable |
+| --------------------------- | ------------------------------------------------ | --------------------- |
+| Harina 000 / 0000           | **Bolsa de 25 kg** (el estándar argentino)       | kg                    |
+| Harina integral             | Bolsa de 25 kg (algunos la venden de 30 kg)      | kg                    |
+| Azúcar                      | Bolsa de 50 kg y de 25 kg                        | kg                    |
+| Levadura fresca             | **Pan de 500 g**, caja de 10 kg                  | kg                    |
+| Margarina para hojaldre     | **Placa de 2 kg**                                | kg                    |
+| Margarina / manteca de masa | **Pan o envase de 5 kg**, caja de 10 kg          | kg                    |
+| Dulce de leche repostero    | **Balde de 10 kg** (es el formato universal acá) | kg                    |
+| Aceite                      | **Balde de 10, 18 o 20 litros**                  | ver abajo ⚠️          |
+| Leche                       | Sachet de 1 l, bidón de 10 l                     | l                     |
+| Huevo                       | **Maple de 30 u**, caja de 360 u                 | u                     |
+| Cajas, bolsas de papel      | Paquete de 50, 100 o 500 unidades                | u                     |
+
+Dos conclusiones directas:
+
+1. **Se compra por bulto y se usa por unidad chica.** Nunca se compra "1 kg de harina": se compran bolsas. Eso es exactamente lo que resuelve `presentacion_insumo`, y confirma que la decisión de la Fase 4 estaba bien.
+2. **El seed del proyecto ya refleja estas presentaciones reales.** No hay que cambiarlo.
+
+#### ⚠️ El hallazgo importante: peso contra volumen
+
+En una panadería profesional **se pesa todo, incluidos los líquidos**. Las recetas se escriben con el _porcentaje panadero_: la harina es el 100% y todo lo demás es una proporción **en gramos**. Un ejemplo de ficha técnica:
+
+| Ingrediente     | Peso   | %    |
+| --------------- | ------ | ---- |
+| Harina          | 1000 g | 100% |
+| Agua            | 650 g  | 65%  |
+| Sal             | 20 g   | 2%   |
+| Levadura fresca | 20 g   | 2%   |
+| Aceite          | 40 g   | 4%   |
+
+Y el aceite **se compra en litros** (balde de 20 l) pero **se usa en gramos**. Esa es literalmente la pregunta C-3, y la respuesta es **sí, pasa**.
+
+**Cómo se resuelve sin meter densidad en el sistema:** la presentación ya guarda _cuántas unidades base trae el bulto_, así que la densidad se escribe **una sola vez, ahí**:
+
+```
+Insumo: Aceite de girasol      unidad base: kg
+  Presentación "Balde 20 l"    cantidadBase: 18.4      (20 l × 0,92 kg/l)
+```
+
+De ahí en adelante el stock se lleva en kg, el consumo se carga en gramos o kg, y **el sistema nunca tiene que adivinar una densidad**: la cuenta la hizo una persona al dar de alta la presentación, con el dato del envase en la mano.
+
+La regla, entonces, es la que ya estaba y ahora tiene fundamento:
+
+> **Cada insumo elige UNA dimensión para su stock, la que se usa en la receta.** Si se compra en otra, la conversión vive en la presentación, no en una tabla de densidades.
+
+La alternativa —una columna `densidad` en `insumo` y conversión PESO↔VOLUMEN automática— sigue descartada: la densidad de la harina suelta varía con la humedad y la compactación, así que el número sería falsa precisión. Queda anotada en 3.12 como mejora futura si alguna vez hace falta.
+
+**Decisión pendiente para el alta real del catálogo:** el aceite está hoy en el seed con unidad base **litro** (no kg). Para el cliente real hay que preguntarle si la receta lo pesa o lo mide; si lo pesa, el insumo se da de alta en kg y la presentación "Bidón 10 l" lleva `cantidadBase: 9.2`.
+
+Fuentes: [MGC Distribuidora](https://distribuidoramgc.com.ar/) · [Alsedo Lorenzo (La Plata)](https://www.alsedolorenzo.com/) · [Shopping del panadero](https://shoppingdelpanadero.com/) · [Mayorista de Legumbres](https://www.mayoristadelegumbres.com.ar/producto/harina-000-x-25-kg/) · [SMP Descartables](https://www.smpdescartables.com/collections/panaderia) · [Dulce de leche repostero balde 10 kg](https://www.vacalincomoencasa.com/productos/dulce-de-leche-repostero-vacalin-de-10-kilos/) · [Porcentaje panadero](https://calculover.com/es/food-cooking/cooking/bakers-percentage/) · [SG Systems — hidratación y pesaje gravimétrico](https://sgsystemsglobal.com/es/?p=16839)
+
+---
+
+### 5.3 Pendientes que salieron de las respuestas
+
+| Qué                                                                                                                                                                                                                           | De dónde sale  | Cuándo                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------- |
+| **Comparar precios entre proveedores** del mismo insumo: marcar el más barato y el más caro en el panel "quién me lo provee".                                                                                                 | C-6            | Fase 8 (cuando el precio se actualice solo) |
+| **`fecha_entrega_estimada`** en la orden de compra, y aviso cuando pasó la fecha y no llegó.                                                                                                                                  | C-8            | Fase 8                                      |
+| **El IVA sale del alcance.** No tocar `costo_incluye_iva`; el costo es lo que pagó.                                                                                                                                           | C-11           | ya                                          |
+| **Permisos de compra solo para `DUENO`.**                                                                                                                                                                                     | C-13           | Fase 8                                      |
+| **El consumo automático por recetas es la expectativa número uno del cliente.** Hay que decírselo explícitamente: en esta etapa el consumo se carga a mano, y el módulo de producción va a usar el mismo motor sin cambiarlo. | C-14           | fuera de esta etapa                         |
+| **"Hasta qué hora es hoy"** configurable por empresa (hoy se resuelve con la fecha editable).                                                                                                                                 | C-17           | Fase 11                                     |
+| ~~**Modo claro y modo oscuro elegibles**~~ **HECHO**: selector de tres opciones (claro / oscuro / automático) en el encabezado y en el login, recordado en `localStorage`.                                                    | pedido directo | ver abajo ⬇️                                |
+| ~~**Revisar la paleta y el contraste**~~ **HECHO**: 4 combinaciones estaban por debajo de WCAG AA (la peor, 2,28:1). Ahora todas pasan 4,5:1. Fuente base 17 px. Ver `docs/aprendizaje/14`.                                   | pedido directo | ver abajo ⬇️                                |
+
+> Los dos últimos son de **usabilidad, no de funcionalidad**, y son los únicos que el cliente pidió mirando la pantalla. Conviene hacerlos como un paso propio y corto, no mezclados con una fase de negocio.
+
 ### A. Insumos y unidades
 
 | #   | Pregunta                                                                                      | Por qué importa                                                                                                                   | Si no contesta, asumimos                                                      |

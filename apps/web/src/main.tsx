@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 
 import { App } from './App';
+import { ProveedorTema } from './components/Tema';
 import './index.css';
 
 /**
@@ -29,11 +30,15 @@ if (!contenedor) {
 
 createRoot(contenedor).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      {/* BrowserRouter usa las URLs normales del navegador (/login, /insumos). */}
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </QueryClientProvider>
+    {/* El tema envuelve TODO, incluido el login: si alguien no puede leer la
+        pantalla, el problema empieza antes de entrar. */}
+    <ProveedorTema>
+      <QueryClientProvider client={queryClient}>
+        {/* BrowserRouter usa las URLs normales del navegador (/login, /insumos). */}
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ProveedorTema>
   </StrictMode>,
 );

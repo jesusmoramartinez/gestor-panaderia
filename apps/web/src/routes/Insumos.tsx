@@ -55,7 +55,7 @@ export function Insumos() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="mr-auto">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Insumos</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             {insumos.isPending ? 'Cargando...' : `${String(total)} en el catálogo`}
           </p>
         </div>
@@ -116,7 +116,7 @@ export function Insumos() {
       {insumos.isError && <MensajeError>{insumos.error.message}</MensajeError>}
 
       {insumos.data && insumos.data.items.length === 0 && (
-        <p className="rounded-2xl bg-white p-8 text-center text-slate-500 shadow-sm dark:bg-slate-900 dark:text-slate-400">
+        <p className="rounded-2xl bg-white p-8 text-center text-slate-600 dark:text-slate-400 shadow-sm dark:bg-slate-900">
           No hay insumos que coincidan con la búsqueda.
         </p>
       )}
@@ -170,7 +170,7 @@ function ListaInsumos({ items }: { items: readonly InsumoResumen[] }) {
                 <span className="font-medium">{insumo.nombre}</span>
                 {!insumo.activo && <EtiquetaInactivo />}
               </div>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 {insumo.categoria?.nombre ?? 'Sin categoría'} · se lleva en{' '}
                 {insumo.unidadBase.codigo} · {String(insumo.cantidadPresentaciones)} presentaciones
               </p>
@@ -180,7 +180,7 @@ function ListaInsumos({ items }: { items: readonly InsumoResumen[] }) {
       </ul>
 
       <table className="hidden w-full text-left md:table">
-        <thead className="border-b border-slate-200 text-xs tracking-wide text-slate-500 uppercase dark:border-slate-700 dark:text-slate-400">
+        <thead className="border-b border-slate-200 text-xs tracking-wide text-slate-600 dark:text-slate-400 uppercase dark:border-slate-700">
           <tr>
             <th className="px-4 py-3 font-semibold">Insumo</th>
             <th className="px-4 py-3 font-semibold">Categoría</th>
@@ -196,7 +196,9 @@ function ListaInsumos({ items }: { items: readonly InsumoResumen[] }) {
                 <Link to={`/insumos/${insumo.id}`} className="flex min-h-10 items-center gap-2">
                   <span className="font-medium">{insumo.nombre}</span>
                   {insumo.codigo !== null && (
-                    <span className="font-mono text-xs text-slate-400">{insumo.codigo}</span>
+                    <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                      {insumo.codigo}
+                    </span>
                   )}
                   {!insumo.activo && <EtiquetaInactivo />}
                 </Link>

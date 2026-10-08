@@ -67,13 +67,16 @@ export function ProveedorDetalle() {
   });
 
   if (consulta.isPending) {
-    return <p className="text-slate-500 dark:text-slate-400">Cargando proveedor...</p>;
+    return <p className="text-slate-600 dark:text-slate-400">Cargando proveedor...</p>;
   }
   if (consulta.isError || !consulta.data) {
     return (
       <div className="space-y-3">
         <MensajeError>{consulta.error?.message ?? 'No se encontró el proveedor.'}</MensajeError>
-        <Link to="/proveedores" className="text-sm text-corteza hover:underline">
+        <Link
+          to="/proveedores"
+          className="text-sm text-corteza dark:text-corteza-claro hover:underline"
+        >
           ← Volver a proveedores
         </Link>
       </div>
@@ -85,7 +88,10 @@ export function ProveedorDetalle() {
   return (
     <div className="space-y-4">
       <div>
-        <Link to="/proveedores" className="text-sm text-corteza hover:underline">
+        <Link
+          to="/proveedores"
+          className="text-sm text-corteza dark:text-corteza-claro hover:underline"
+        >
           ← Volver a proveedores
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
@@ -122,7 +128,7 @@ export function ProveedorDetalle() {
             ))}
         </div>
         {proveedor.razonSocial !== null && (
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             {proveedor.razonSocial}
             {proveedor.cuit !== null && ` · CUIT ${proveedor.cuit}`}
           </p>
@@ -384,7 +390,7 @@ function InsumosDelProveedor({
 
   return (
     <Tarjeta titulo="Insumos que le compro">
-      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
         En qué presentación lo vende, a qué precio y con qué código lo pide. El precio sirve para
         comparar proveedores y para sugerir el importe al cargar una compra.
       </p>
@@ -552,38 +558,40 @@ function FilaInsumo({
           className={
             fila.activo
               ? 'font-medium hover:underline'
-              : 'text-slate-400 line-through hover:underline'
+              : 'text-slate-600 dark:text-slate-400 line-through hover:underline'
           }
         >
           {fila.insumo.nombre}
         </Link>
 
-        <span className="text-sm text-slate-500 dark:text-slate-400">
+        <span className="text-sm text-slate-600 dark:text-slate-400">
           {fila.presentacion === null
             ? `por ${fila.insumo.unidadBaseCodigo}`
             : `${fila.presentacion.nombre} (${formatearCantidad(fila.presentacion.cantidadBase)} ${fila.insumo.unidadBaseCodigo})`}
         </span>
 
         {fila.codigoProveedor !== null && (
-          <span className="font-mono text-xs text-slate-400">cód. {fila.codigoProveedor}</span>
+          <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
+            cód. {fila.codigoProveedor}
+          </span>
         )}
 
         {fila.esPreferido && (
-          <span className="rounded-full bg-corteza/15 px-2 py-0.5 text-xs font-semibold text-corteza">
+          <span className="rounded-full bg-corteza/15 px-2 py-0.5 text-xs font-semibold text-corteza dark:text-corteza-claro">
             preferido
           </span>
         )}
 
         <span className="ml-auto text-right">
           {fila.ultimoPrecio === null ? (
-            <span className="text-sm text-slate-400">sin precio</span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">sin precio</span>
           ) : (
             <>
               <span className="font-semibold tabular-nums">
                 {formatearDinero(fila.ultimoPrecio)}
               </span>
               {fila.ultimoPrecioAt !== null && (
-                <span className="block text-xs text-slate-400">
+                <span className="block text-xs text-slate-600 dark:text-slate-400">
                   {formatearFechaArgentina(new Date(fila.ultimoPrecioAt))}
                 </span>
               )}
@@ -601,7 +609,7 @@ function FilaInsumo({
               onClick={() => {
                 modificar.mutate({ esPreferido: true });
               }}
-              className="min-h-10 rounded-lg px-3 text-sm text-corteza hover:underline disabled:opacity-50"
+              className="min-h-10 rounded-lg px-3 text-sm text-corteza dark:text-corteza-claro hover:underline disabled:opacity-50"
             >
               Marcar preferido
             </button>
@@ -621,7 +629,7 @@ function FilaInsumo({
             onClick={() => {
               modificar.mutate({ activo: !fila.activo });
             }}
-            className="min-h-10 rounded-lg px-3 text-sm text-slate-500 hover:underline disabled:opacity-50 dark:text-slate-400"
+            className="min-h-10 rounded-lg px-3 text-sm text-slate-600 dark:text-slate-400 hover:underline disabled:opacity-50"
           >
             {fila.activo ? 'Ya no se lo compro' : 'Volver a comprarle'}
           </button>

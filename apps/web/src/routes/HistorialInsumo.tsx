@@ -68,7 +68,7 @@ export function HistorialInsumo() {
     return (
       <div className="space-y-3">
         <MensajeError>{historial.error.message}</MensajeError>
-        <Link to="/stock" className="text-sm text-corteza hover:underline">
+        <Link to="/stock" className="text-sm text-corteza dark:text-corteza-claro hover:underline">
           ← Volver al stock
         </Link>
       </div>
@@ -82,13 +82,13 @@ export function HistorialInsumo() {
   return (
     <div className="space-y-4">
       <div>
-        <Link to="/stock" className="text-sm text-corteza hover:underline">
+        <Link to="/stock" className="text-sm text-corteza dark:text-corteza-claro hover:underline">
           ← Volver al stock
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
           {insumo.data?.nombre ?? 'Historial'}
         </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           {activa.nombre} · {String(total)} movimientos
         </p>
       </div>
@@ -96,18 +96,21 @@ export function HistorialInsumo() {
       <Tarjeta titulo="Stock actual">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <Saldo valor={historial.data?.saldo ?? '0'} unidad={unidad} grande />
-          <Link to={`/insumos/${insumoId}`} className="text-sm text-corteza hover:underline">
+          <Link
+            to={`/insumos/${insumoId}`}
+            className="text-sm text-corteza dark:text-corteza-claro hover:underline"
+          >
             Ver la ficha del insumo →
           </Link>
         </div>
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
           Este número no está guardado en ninguna parte: es la suma de los {String(total)}{' '}
           movimientos de abajo.
         </p>
       </Tarjeta>
 
       {historial.data?.items.length === 0 ? (
-        <p className="rounded-2xl bg-white p-8 text-center text-slate-500 shadow-sm dark:bg-slate-900 dark:text-slate-400">
+        <p className="rounded-2xl bg-white p-8 text-center text-slate-600 dark:text-slate-400 shadow-sm dark:bg-slate-900">
           Este insumo todavía no tiene movimientos en {activa.nombre}.
         </p>
       ) : (
@@ -240,7 +243,7 @@ function Fila({
         </span>
       </div>
 
-      <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      <div className="mt-1 text-sm text-slate-600 dark:text-slate-400">
         {formatearFechaArgentina(new Date(movimiento.fecha))} · {movimiento.usuario.nombre}
         {/* Si lo tipeó en otra unidad, el historial lo cuenta tal cual pasó:
             "cargó 2000 g = 2 kg". Las tres piezas salen del movimiento. */}
