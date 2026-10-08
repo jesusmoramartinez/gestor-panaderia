@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Sistema de gestión para panadería — control de stock de materia prima",
+  "description": "Sistema de gesti\u00f3n para panader\u00eda \u2014 control de stock de materia prima",
   "packageManager": "pnpm@12.9.1",
   "engines": {
     "node": ">=22"
@@ -20,9 +20,13 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && docker compose up -d",
     "db:logs": "docker compose logs -f db",
-    "db:psql": "docker compose exec db psql -U panaderia -d panaderia"
+    "db:psql": "docker compose exec db psql -U panaderia -d panaderia",
+    "db:generate": "pnpm --filter @panaderia/api db:generate",
+    "db:migrate": "pnpm --filter @panaderia/api db:migrate",
+    "db:seed": "pnpm --filter @panaderia/api db:seed",
+    "db:studio": "pnpm --filter @panaderia/api db:studio",
+    "db:reset": "pnpm --filter @panaderia/api db:reset"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

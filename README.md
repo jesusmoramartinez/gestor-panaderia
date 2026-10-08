@@ -4,7 +4,7 @@ Sistema web de gestión para una panadería con dos sucursales (una central que
 produce y abastece a la otra). Preparado para multi-empresa desde el diseño.
 
 **Etapa actual:** control de stock de materia prima (insumos).
-**Fase actual:** 0 — setup del repositorio y rebanada vertical. ✅
+**Fase actual:** 1 — modelo núcleo, migraciones y seed. ✅
 
 | Documento                                | Para qué                                                                    |
 | ---------------------------------------- | --------------------------------------------------------------------------- |
@@ -38,8 +38,21 @@ sudo usermod -aG docker "$USER"     # después hay que volver a iniciar sesión
 
 ```bash
 pnpm db:up        # levanta PostgreSQL en Docker
+pnpm db:migrate   # aplica las migraciones pendientes
+pnpm db:seed      # carga los datos de prueba (se puede correr muchas veces)
 pnpm dev          # levanta la API (puerto 3000) y el frontend (puerto 5173)
 ```
+
+### Usuarios de desarrollo
+
+Los crea `pnpm db:seed`. Todos con la contraseña **`panaderia123`**
+(son datos de prueba; el seed se niega a correr con `NODE_ENV=production`).
+
+| Email                      | Rol         | Sucursales          |
+| -------------------------- | ----------- | ------------------- |
+| `dueno@panaderia.test`     | `DUENO`     | todas               |
+| `encargado@panaderia.test` | `ENCARGADO` | Central y Laferrere |
+| `empleado@panaderia.test`  | `EMPLEADO`  | Laferrere           |
 
 Abrí **http://localhost:5173** y deberías ver los indicadores de API y base de
 datos en verde.
@@ -70,9 +83,13 @@ Para un paquete puntual: `pnpm --filter @panaderia/api test`
 .
 ├── apps/
 │   ├── api/          Backend: Node + Express + PostgreSQL
+│   │   ├── prisma/
+│   │   │   ├── schema.prisma   El modelo de datos
+│   │   │   ├── migrations/     SQL versionado (se lee, no se edita)
+│   │   │   └── seed.ts         Datos de prueba, idempotente
 │   │   └── src/
 │   │       ├── config/    Variables de entorno validadas con Zod
-│   │       ├── lib/       Pool de conexiones, utilidades
+│   │       ├── lib/       Pool + cliente Prisma, hashing, utilidades
 │   │       └── modules/   Un directorio por módulo del negocio
 │   │                      (routes → controller → service → repo)
 │   └── web/          Frontend: React + Vite + Tailwind + TanStack Query
@@ -80,11 +97,13 @@ Para un paquete puntual: `pnpm --filter @panaderia/api test`
     └── shared/       Esquemas Zod, tipos y lógica pura usados por los dos lados
 ```
 
-## Verificación de la Fase 0
+## Verificación
 
 ```bash
 docker compose ps        # la base tiene que figurar "healthy"
 pnpm check               # typecheck + lint + test en verde
+pnpm db:seed             # correlo dos veces: los datos no se duplican
+pnpm db:studio           # mirá empresa, sucursal, usuario y usuario_sucursal
 curl localhost:3000/api/health
 ```
 

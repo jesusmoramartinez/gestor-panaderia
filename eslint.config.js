@@ -7,7 +7,15 @@ import prettierConfig from 'eslint-config-prettier/flat';
 
 export default tseslint.config(
   // 1. Lo que ESLint ni mira
-  { ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      // Código generado por Prisma: no lo escribimos nosotros.
+      '**/src/generated/**',
+    ],
+  },
 
   // 2. Reglas básicas de JavaScript
   js.configs.recommended,

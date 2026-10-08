@@ -1,0 +1,144 @@
+// Modelo de datos. Este archivo es la fuente de verdad del esquema:
+// `prisma migrate dev` compara este archivo con la base y genera el SQL.
+//
+// Convención del proyecto (ver CLAUDE.md):
+//   - acá los modelos van en PascalCase singular (Empresa, UsuarioSucursal)
+//   - en la base, las tablas y columnas van en snake_case (@@map y @map)
+// Así el código TypeScript se lee natural y el SQL también.
+
+generator client {
+  // "prisma-client" es el generador nuevo de Prisma 7: genera código ESM
+  // y pide que le digas dónde ponerlo (antes escribía en node_modules).
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // La URL NO va acá: Prisma 7 la toma de prisma.config.ts, que la lee del .env
+  // de la raíz del repositorio.
+}
+
+/// Roles del sistema. Son fijos (ver decisión en PLAN.md 3.1): con tres roles,
+/// una matriz de permisos en código es más simple y más fácil de testear que
+/// dos tablas, y no se puede desincronizar con la base.
+enum RolUsuario {
+  DUENO
+  ENCARGADO
+  EMPLEADO
+
+  @@map("rol_usuario")
+}
+
+/// El "inquilino" del sistema (tenant). Es la raíz del aislamiento
+/// multi-empresa: cuando el sistema se venda a otra panadería, se crea otra
+/// fila acá y sus datos jamás se cruzan con los de esta.
+model Empresa {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre          String
+  razonSocial     String? @map("razon_social")
+  cuit            String?
+  /// Para mostrar las fechas. Se guardan en UTC, se muestran en esta zona.
+  zonaHoraria     String  @default("America/Argentina/Buenos_Aires") @map("zona_horaria")
+  moneda          String  @default("ARS")
+  /// Si el IVA es parte del costo del inventario. Depende de la condición
+  /// fiscal del cliente: pregunta C-11 de PLAN.md.
+  costoIncluyeIva Boolean @default(true) @map("costo_incluye_iva")
+  activa          Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  sucursales Sucursal[]
+  usuarios   Usuario[]
+
+  @@map("empresa")
+}
+
+/// Un local físico. El stock pertenece a una sucursal, nunca a la empresa:
+/// de acá van a colgar los movimientos, los mínimos y las transferencias.
+model Sucursal {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId String  @map("empresa_id") @db.Uuid
+  nombre    String
+  /// Código corto para los documentos (CEN, LAF).
+  codigo    String
+  direccion String?
+  telefono  String?
+  /// Marca la sucursal que produce y abastece a las demás. Hoy es informativo;
+  /// lo va a usar el módulo de producción y la venta mayorista.
+  esCentral Boolean @default(false) @map("es_central")
+  activa    Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  // onDelete: Restrict → la base impide borrar una empresa que tenga
+  // sucursales. En este sistema no borramos nada (desactivamos), así que esto
+  // es una red de seguridad contra un borrado accidental.
+  empresa  Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuarios UsuarioSucursal[]
+
+  // La unicidad SIEMPRE empieza por empresa_id: dos panaderías distintas
+  // pueden tener una sucursal con el mismo código.
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@map("sucursal")
+}
+
+/// Una persona que usa el sistema. Pertenece a UNA empresa y tiene UN rol
+/// (decisión 3 de PLAN.md).
+model Usuario {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId      String     @map("empresa_id") @db.Uuid
+  /// Único a nivel global, no por empresa: si el mismo email existiera en dos
+  /// empresas, al loguearse habría que preguntar "¿en cuál querés entrar?".
+  /// Se guarda siempre en minúsculas; la normalización la hace la capa de
+  /// aplicación al crear o loguear usuarios (Fase 2). Postgres distingue
+  /// mayúsculas, así que sin normalizar podrían existir dos cuentas que para
+  /// una persona son la misma.
+  email          String     @unique
+  nombre         String
+  /// NUNCA la contraseña: solo su hash (transformación irreversible). Si te
+  /// roban la base, no tienen las contraseñas.
+  passwordHash   String     @map("password_hash")
+  rol            RolUsuario
+  activo         Boolean    @default(true)
+  ultimoAccesoAt DateTime?  @map("ultimo_acceso_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  empresa    Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursales UsuarioSucursal[]
+
+  @@index([empresaId])
+  @@map("usuario")
+}
+
+/// En qué sucursales puede operar cada usuario.
+///
+/// Es una relación MUCHOS A MUCHOS (un usuario puede estar en varias
+/// sucursales; una sucursal tiene varios usuarios), y en SQL eso siempre se
+/// modela con una tabla puente.
+///
+/// Regla: el rol DUENO accede a todas las sucursales de su empresa sin
+/// necesidad de filas acá (lo resuelve el middleware de permisos, Fase 2).
+model UsuarioSucursal {
+  usuarioId  String @map("usuario_id") @db.Uuid
+  sucursalId String @map("sucursal_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // onDelete: Cascade → si se borra el usuario, sus asignaciones se van con
+  // él. Acá SÍ corresponde: una asignación no es un registro histórico, es
+  // configuración vigente. (Compará con onDelete: Restrict de arriba.)
+  usuario  Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  sucursal Sucursal @relation(fields: [sucursalId], references: [id], onDelete: Cascade)
+
+  // Clave primaria COMPUESTA: la identidad de la fila la dan las dos columnas
+  // juntas, así el mismo usuario no puede estar dos veces en la misma sucursal.
+  @@id([usuarioId, sucursalId])
+  @@index([sucursalId])
+  @@map("usuario_sucursal")
+}

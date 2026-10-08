@@ -3,9 +3,12 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "types": ["node"],
-    "rootDir": "src",
-    "outDir": "dist"
+    "types": ["node"]
+    // Ojo: rootDir y outDir NO van acá. Este tsconfig es el del editor, el
+    // linter y `pnpm typecheck`, y tiene que abarcar TODO el paquete (incluido
+    // el seed y la config de Prisma, que viven fuera de src/). rootDir vive en
+    // tsconfig.build.json, que es el único que genera archivos.
   },
-  "include": ["src"]
+  // Todo lo que tiene que verificar TypeScript.
+  "include": ["src", "prisma", "prisma.config.ts"]
 }

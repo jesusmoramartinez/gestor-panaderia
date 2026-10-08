@@ -32,3 +32,6 @@ backups/
 .idea/
 .DS_Store
 *.swp
+
+# Cliente de Prisma generado (se regenera con `pnpm db:generate`)
+apps/api/src/generated/

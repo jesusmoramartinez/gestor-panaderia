@@ -1,6 +1,6 @@
 import { crearApp } from './app.js';
 import { env } from './config/env.js';
-import { cerrarPool } from './lib/db.js';
+import { cerrarConexiones } from './lib/db.js';
 
 const app = crearApp();
 
@@ -17,7 +17,7 @@ for (const senal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(senal, () => {
     console.log(`\n[api] recibí ${senal}, cerrando...`);
     servidor.close(() => {
-      cerrarPool()
+      cerrarConexiones()
         .then(() => process.exit(0))
         .catch(() => process.exit(1));
     });

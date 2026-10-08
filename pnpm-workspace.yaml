@@ -19,7 +19,9 @@ catalog:
 # conocida. Acá se habilitan uno por uno los que sí lo necesitan.
 # (esbuild baja el binario compilado para tu sistema operativo.)
 allowBuilds:
+  '@prisma/engines': true
   esbuild: true
+  prisma: true
 
 # pnpm 12 tampoco instala por defecto versiones publicadas hace muy poco
 # (otra defensa contra paquetes comprometidos: si alguien publica una versión

@@ -20,13 +20,13 @@ Una nota por concepto, en Markdown. No son documentación del sistema (eso es `P
 | [05-unidades-y-conversiones.md](05-unidades-y-conversiones.md)         | Unidad base, dimensiones, presentaciones de compra y la regla del snapshot                                                                                                                                                  | Antes de la Fase 3                          |
 | [06-multiempresa-y-aislamiento.md](06-multiempresa-y-aislamiento.md)   | Qué es multi-tenancy y cómo se evita que una panadería vea los datos de otra                                                                                                                                                | Antes de la Fase 2                          |
 | [07-fase-0-plomeria.md](07-fase-0-plomeria.md)                         | Lo que apareció al armar la Fase 0: validar variables de entorno, CORS y el proxy, el pool de conexiones, los `.js` en los imports, `AggregateError`, el cambio de ruta del volumen en PostgreSQL 18 y por qué TypeScript 6 | Después de la Fase 0                        |
+| [08-fase-1-prisma-y-migraciones.md](08-fase-1-prisma-y-migraciones.md) | Lo que apareció en la Fase 1: qué hace un ORM, migración vs esquema, el SQL línea por línea, RESTRICT vs CASCADE, seed idempotente con `upsert`, cómo se guarda una contraseña y las tres cosas que cambiaron en Prisma 7   | Después de la Fase 1                        |
 
 ## Todavía no escritas (se agregan al llegar a su fase)
 
-- Migraciones de base de datos → Fase 1
 - Transacciones y ACID → Fase 6
 - Condiciones de carrera y bloqueos → Fase 6
-- Autenticación: cookies, sesiones, hash de contraseñas, CSRF → Fase 2
+- Autenticación: cookies, sesiones y CSRF → Fase 2
 - Zod y tipos derivados → Fase 4
 - TanStack Query y el caché del servidor → Fase 4
 - Costo promedio ponderado paso a paso → Fase 8
