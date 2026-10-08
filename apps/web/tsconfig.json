@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // El navegador no usa el sistema de módulos de Node: acá resuelve Vite.
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // Por eso los imports relativos NO llevan extensión acá (en api sí).
+    // Cada entorno sigue la convención de su ecosistema.
+
+    // Tipos del navegador: document, fetch, HTMLElement...
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // ...los de Node, que hacen falta para vite.config.ts,
+    // ...y los de Vite, que declaran que se puede importar un .css
+    // (sin esto, `import "./index.css"` es un error de tipos).
+    "types": ["node", "vite/client"],
+
+    // Transforma el JSX sin necesidad de importar React en cada archivo.
+    "jsx": "react-jsx",
+
+    // Vite se encarga de generar los archivos; TypeScript acá solo verifica.
+    "noEmit": true
+  },
+  "include": ["src", "vite.config.ts"]
+}

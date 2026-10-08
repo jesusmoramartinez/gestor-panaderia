@@ -1,0 +1,40 @@
+# Declara dónde están los paquetes del monorepo.
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# CATÁLOGO: las versiones que comparten varios paquetes se declaran UNA vez acá.
+# En los package.json se escribe "catalog:" en lugar del número de versión.
+# Así los tres paquetes usan exactamente la misma versión de TypeScript y de Zod
+# (dos versiones distintas de TypeScript en un monorepo producen errores de
+# tipos incomprensibles).
+catalog:
+  '@types/node': ^26.6.4
+  typescript: ^6.0.3
+  vitest: ^5.0.3
+  zod: ^4.6.5
+
+# pnpm bloquea por defecto los scripts de instalación de las dependencias:
+# un paquete puede ejecutar código al instalarse, y eso es una vía de ataque
+# conocida. Acá se habilitan uno por uno los que sí lo necesitan.
+# (esbuild baja el binario compilado para tu sistema operativo.)
+allowBuilds:
+  esbuild: true
+
+# pnpm 12 tampoco instala por defecto versiones publicadas hace muy poco
+# (otra defensa contra paquetes comprometidos: si alguien publica una versión
+# maliciosa, suele detectarse en horas). Estas excepciones las agregó pnpm solo
+# porque son las versiones actuales del linter y del plugin de React.
+minimumReleaseAgeExclude:
+  - '@typescript-eslint/eslint-plugin@8.71.1'
+  - '@typescript-eslint/parser@8.71.1'
+  - '@typescript-eslint/project-service@8.71.1'
+  - '@typescript-eslint/scope-manager@8.71.1'
+  - '@typescript-eslint/tsconfig-utils@8.71.1'
+  - '@typescript-eslint/type-utils@8.71.1'
+  - '@typescript-eslint/types@8.71.1'
+  - '@typescript-eslint/typescript-estree@8.71.1'
+  - '@typescript-eslint/utils@8.71.1'
+  - '@typescript-eslint/visitor-keys@8.71.1'
+  - '@vitejs/plugin-react@6.1.2'
+  - typescript-eslint@8.71.1

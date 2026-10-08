@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    // === Qué versión de JavaScript generamos ===
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "moduleDetection": "force",
+
+    // === MODO STRICT (lo que pediste) ===
+    // Activa ~8 chequeos. El más importante: strictNullChecks, que no deja
+    // usar un valor que podría ser null/undefined sin chequearlo primero.
+    "strict": true,
+
+    // === Chequeos extra que atrapan errores reales sin generar ruido ===
+    "noImplicitOverride": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // === Reglas de módulos ===
+    // verbatimModuleSyntax obliga a escribir `import type { X }` cuando solo
+    // importás un tipo. Evita que queden imports de cosas que no existen
+    // en tiempo de ejecución.
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+
+    // === Varios ===
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "declaration": true,
+    "noEmit": true
+  }
+}

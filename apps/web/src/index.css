@@ -1,0 +1,16 @@
+/* Tailwind v4: una sola línea reemplaza al tailwind.config.js,
+   al postcss.config.js y a las tres directivas @tailwind de la v3. */
+@import 'tailwindcss';
+
+/* Tokens propios del proyecto. En Tailwind v4 el tema se define en CSS
+   y queda disponible como clases (por ejemplo bg-masa). */
+@theme {
+  --color-masa: #f7f1e5;
+  --color-corteza: #b4712c;
+  --color-horno: #2b1d12;
+}
+
+html {
+  /* Evita el zoom automático de iOS al tocar un input en la tablet. */
+  -webkit-text-size-adjust: 100%;
+}

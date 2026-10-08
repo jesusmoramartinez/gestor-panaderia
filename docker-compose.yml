@@ -1,0 +1,43 @@
+# Levanta PostgreSQL para desarrollo local.
+#   docker compose up -d     → arranca en segundo plano
+#   docker compose down      → apaga (los datos quedan en el volumen)
+#   docker compose down -v   → apaga y BORRA los datos
+#
+# Las variables ${...} las lee Docker Compose del archivo .env de esta carpeta.
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: panaderia-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-panaderia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-panaderia_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-panaderia}
+      # La base guarda y razona en UTC. La conversión a hora de Argentina
+      # se hace al mostrar, en el frontend.
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      # Volumen con nombre: los datos sobreviven a `docker compose down`.
+      #
+      # OJO con la ruta: a partir de PostgreSQL 18 la imagen oficial cambió la
+      # convención. Antes el volumen se montaba en /var/lib/postgresql/DATA;
+      # desde la 18 se monta en /var/lib/postgresql y Postgres guarda los datos
+      # en un subdirectorio por versión (/var/lib/postgresql/18/docker), para
+      # que se pueda hacer `pg_upgrade --link` entre versiones.
+      # Si lo montás en .../data, el contenedor arranca y muere en bucle.
+      # (Casi todos los tutoriales todavía dicen .../data.)
+      - panaderia_db_data:/var/lib/postgresql
+    healthcheck:
+      # Docker pregunta cada 5s si Postgres ya acepta conexiones.
+      # Hasta que responda, el contenedor figura como "starting", no "healthy".
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-panaderia} -d ${POSTGRES_DB:-panaderia}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  panaderia_db_data:

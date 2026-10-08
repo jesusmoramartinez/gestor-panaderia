@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "src",
+    "outDir": "dist"
+    // Ojo: NO declaramos "types": ["node"] ni "DOM" en lib.
+    // Este código corre en el navegador Y en el servidor, así que no puede
+    // usar APIs exclusivas de ninguno de los dos. Si alguien importa "fs"
+    // acá, TypeScript lo rechaza. Es una barrera a propósito.
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,34 @@
+# Dependencias
+node_modules/
+
+# Builds y artefactos de compilación
+dist/
+build/
+*.tsbuildinfo
+
+# Variables de entorno — NUNCA se commitean (contienen contraseñas)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Tests
+coverage/
+
+# Backups de base de datos — nunca al repositorio
+backups/
+*.dump
+*.sql.gz
+
+# Caché de herramientas
+.vite/
+.eslintcache
+
+# Editores y sistema operativo
+.idea/
+.DS_Store
+*.swp

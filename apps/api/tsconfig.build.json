@@ -1,0 +1,12 @@
+{
+  // Configuración SOLO para generar los archivos de dist/.
+  // El tsconfig.json principal es el que usan el editor, ESLint y `typecheck`:
+  // ese sí incluye los tests, porque los tests también tienen que compilar.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false
+  },
+  // Los tests no van al build: son para desarrollo, no para producción.
+  // (Y si quedaran en dist/, Vitest los encontraría dos veces.)
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
+}
