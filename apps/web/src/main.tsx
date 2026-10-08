@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router';
 
 import { App } from './App';
 import './index.css';
@@ -29,7 +30,10 @@ if (!contenedor) {
 createRoot(contenedor).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      {/* BrowserRouter usa las URLs normales del navegador (/login, /insumos). */}
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,
 );

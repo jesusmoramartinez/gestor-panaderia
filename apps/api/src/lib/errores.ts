@@ -1,4 +1,68 @@
 /**
+ * Errores de la aplicación.
+ *
+ * Un AppError es un error ESPERADO y parte del diseño: "no tenés permiso",
+ * "no hay stock suficiente". Lleva tres cosas:
+ *   - codigo:  estable y en mayúsculas, para que el frontend pueda reaccionar
+ *              sin leer el texto (los textos cambian, los códigos no);
+ *   - mensaje: en español, pensado para que lo lea una persona;
+ *   - status:  el código HTTP que corresponde.
+ *
+ * Cualquier otro error (un bug, la base caída) NO es un AppError, y el
+ * middleware central lo convierte en un 500 genérico sin filtrar detalles.
+ */
+export class AppError extends Error {
+  override readonly name = 'AppError';
+
+  constructor(
+    readonly codigo: string,
+    readonly mensaje: string,
+    readonly status: number,
+    readonly detalles?: unknown,
+  ) {
+    super(mensaje);
+  }
+}
+
+/**
+ * Los errores que ya sabemos que existen, en un solo lugar.
+ * Tenerlos acá evita que el mismo problema se reporte con tres textos
+ * distintos según el módulo.
+ */
+export const errores = {
+  noAutenticado: () =>
+    new AppError('NO_AUTENTICADO', 'Tenés que iniciar sesión para hacer esto.', 401),
+
+  /**
+   * Un único error para "el email no existe" y "la contraseña está mal".
+   * A propósito: si dijéramos cuál de los dos falló, cualquiera podría
+   * averiguar qué emails están registrados en el sistema.
+   */
+  credencialesInvalidas: () =>
+    new AppError('CREDENCIALES_INVALIDAS', 'Email o contraseña incorrectos.', 401),
+
+  demasiadosIntentos: (esperarSegundos: number) =>
+    new AppError(
+      'DEMASIADOS_INTENTOS',
+      `Demasiados intentos fallidos. Probá de nuevo en ${String(esperarSegundos)} segundos.`,
+      429,
+      { esperarSegundos },
+    ),
+
+  sinPermiso: () => new AppError('SIN_PERMISO', 'No tenés permiso para hacer esto.', 403),
+
+  sucursalNoPermitida: () =>
+    new AppError('SUCURSAL_NO_PERMITIDA', 'No podés operar en esa sucursal.', 403),
+
+  datosInvalidos: (detalles: unknown) =>
+    new AppError('DATOS_INVALIDOS', 'Hay datos inválidos en el pedido.', 400, detalles),
+
+  noEncontrado: (que = 'El recurso') => new AppError('NO_ENCONTRADO', `${que} no existe.`, 404),
+
+  nombreDuplicado: (que: string) => new AppError('NOMBRE_DUPLICADO', `Ya existe ${que}.`, 409),
+};
+
+/**
  * Convierte cualquier cosa que haya sido lanzada en un texto legible.
  *
  * ¿Por qué hace falta? Porque `error.message` a veces viene VACÍO.

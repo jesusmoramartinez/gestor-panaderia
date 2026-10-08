@@ -71,24 +71,29 @@ Estas palabras se usan **en español en el código** (tablas, campos, tipos, fun
 | **Auditoría**                      | Registro de quién cambió qué y cuándo, para todo lo que **sí** se puede modificar (catálogos, precios, usuarios, anulaciones).                                              |
 | **Empresa (tenant)**               | El "inquilino" del sistema. Cada panadería cliente es una empresa; comparten las tablas y jamás los datos.                                                                  |
 | **Rol**                            | `DUENO` (todo, todas las sucursales), `ENCARGADO` (operación de sus sucursales), `EMPLEADO` (carga consumo y mermas de su sucursal).                                        |
+| **Permiso**                        | Una acción concreta (`usuario:crear`). Cada rol tiene una lista. La matriz vive en `packages/shared/src/dominio/permisos.ts` y crece en cada fase.                          |
+| **Sesión**                         | Un login activo. Es una fila en la tabla `sesion`; el navegador solo guarda un token opaco en una cookie que su JavaScript no puede leer.                                   |
+| **Contexto (`ctx`)**               | Quién hace el pedido: usuario, empresa, rol, permisos y sucursales habilitadas. Se arma al autenticar y de ahí sale el `empresa_id` de todas las consultas.                 |
 
 ---
 
 ## 4. Stack
 
-| Capa              | Herramienta                         | Nota                                                                                                        |
-| ----------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Monorepo          | **pnpm workspaces**                 | `apps/web`, `apps/api`, `packages/shared`. Instalar con `npm install -g pnpm` (este Node no trae corepack). |
-| Lenguaje          | **TypeScript strict**               | En los tres paquetes.                                                                                       |
-| Backend           | **Node.js + Express**               | En capas: routes → controllers → services → data access.                                                    |
-| Base de datos     | **PostgreSQL 18** en Docker Compose | Local, con volumen persistente.                                                                             |
-| ORM               | **Prisma**                          | Migraciones versionadas + seed idempotente.                                                                 |
-| Validación        | **Zod**                             | Esquemas en `packages/shared`, usados por el front y el back.                                               |
-| Frontend          | **React + Vite**                    |                                                                                                             |
-| Rutas             | **React Router**                    |                                                                                                             |
-| Datos en el front | **TanStack Query**                  | Caché del estado del servidor.                                                                              |
-| Estilos           | **Tailwind + shadcn/ui**            | Responsive para PC y tablet, controles grandes para uso táctil.                                             |
-| Tests             | **Vitest**                          | Obligatorio en la lógica de stock y conversiones.                                                           |
+| Capa              | Herramienta                          | Nota                                                                                                        |
+| ----------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Monorepo          | **pnpm workspaces**                  | `apps/web`, `apps/api`, `packages/shared`. Instalar con `npm install -g pnpm` (este Node no trae corepack). |
+| Lenguaje          | **TypeScript strict**                | En los tres paquetes.                                                                                       |
+| Backend           | **Node.js + Express**                | En capas: routes → controllers → services → data access.                                                    |
+| Base de datos     | **PostgreSQL 18** en Docker Compose  | Local, con volumen persistente.                                                                             |
+| ORM               | **Prisma**                           | Migraciones versionadas + seed idempotente.                                                                 |
+| Validación        | **Zod**                              | Esquemas en `packages/shared`, usados por el front y el back.                                               |
+| Frontend          | **React + Vite**                     |                                                                                                             |
+| Rutas             | **React Router 8**                   | Solo `react-router` (el paquete `react-router-dom` quedó obsoleto).                                         |
+| Datos en el front | **TanStack Query**                   | Caché del estado del servidor.                                                                              |
+| Estilos           | **Tailwind + shadcn/ui**             | Responsive para PC y tablet, controles grandes para uso táctil.                                             |
+| Tests             | **Vitest**                           | Obligatorio en la lógica de stock y conversiones.                                                           |
+| Sesiones          | **cookie httpOnly + tabla `sesion`** | Sin JWT: la sesión se puede revocar. Token aleatorio, guardado hasheado con SHA-256.                        |
+| Contraseñas       | **`crypto.scrypt`** (nativo)         | Sin dependencias. Los parámetros de costo viajan dentro del hash.                                           |
 
 ---
 
@@ -139,10 +144,17 @@ Si una función necesita `req`, no es un servicio. Si un servicio necesita saber
 
 ### Tests
 
-- Lógica pura (conversiones, CPP, cálculo de saldo): test unitario, obligatorio.
-- Servicios de stock: test con base de datos de prueba, incluyendo los casos de error y las transacciones que fallan a mitad.
+Hay dos clases y viven en lugares distintos:
+
+| Clase           | Dónde                                | Qué prueba                                                                                                                                                                       |
+| --------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unitario**    | junto al archivo, `loquesea.test.ts` | Lógica pura: conversiones, CPP, hashing, el limitador de intentos. Sin base de datos.                                                                                            |
+| **Integración** | `apps/api/test/`                     | La API de punta a punta: levanta Express en un puerto libre, usa cookies y pega contra una base **aparte** (`panaderia_test`), que se borra y se vuelve a crear en cada corrida. |
+
+- Los tests de integración necesitan Postgres levantado (`pnpm db:up`).
 - Cada regla de negocio escrita en `PLAN.md` tiene que tener su test.
 - Un test que no podría fallar nunca no sirve: probar también lo que **tiene** que dar error.
+- **El test de aislamiento multi-empresa (`test/aislamiento.test.ts`) crece con cada endpoint nuevo.** Si una fase agrega un endpoint que devuelve datos, agrega su caso ahí.
 
 ---
 
@@ -187,8 +199,16 @@ pnpm db:reset                   # borrar, migrar y sembrar de nuevo
 # Calidad — las tres tienen que estar en verde para cerrar un paso
 pnpm typecheck
 pnpm lint
-pnpm test
+pnpm test                       # los de integración necesitan `pnpm db:up`
+pnpm check                      # las tres de una
 ```
+
+## Usuarios de desarrollo
+
+Los crea `pnpm db:seed`, todos con la contraseña `panaderia123`:
+`dueno@panaderia.test`, `encargado@panaderia.test`, `empleado@panaderia.test`
+y, en la segunda empresa (existe para los tests de aislamiento),
+`dueno@vecina.test` y `empleado@vecina.test`.
 
 ---
 

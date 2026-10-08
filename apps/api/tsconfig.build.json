@@ -9,5 +9,12 @@
   },
   // A producción va solo src/. Los tests, el seed y la config del CLI de
   // Prisma son herramientas de desarrollo.
-  "exclude": ["**/*.test.ts", "**/*.test.tsx", "prisma/**", "prisma.config.ts"]
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "prisma/**",
+    "test/**",
+    "prisma.config.ts",
+    "vitest.config.ts"
+  ]
 }

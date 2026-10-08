@@ -4,7 +4,7 @@ Sistema web de gestión para una panadería con dos sucursales (una central que
 produce y abastece a la otra). Preparado para multi-empresa desde el diseño.
 
 **Etapa actual:** control de stock de materia prima (insumos).
-**Fase actual:** 1 — modelo núcleo, migraciones y seed. ✅
+**Fase actual:** 2 — login, roles, aislamiento por empresa y auditoría. ✅
 
 | Documento                                | Para qué                                                                    |
 | ---------------------------------------- | --------------------------------------------------------------------------- |
@@ -103,9 +103,12 @@ Para un paquete puntual: `pnpm --filter @panaderia/api test`
 docker compose ps        # la base tiene que figurar "healthy"
 pnpm check               # typecheck + lint + test en verde
 pnpm db:seed             # correlo dos veces: los datos no se duplican
-pnpm db:studio           # mirá empresa, sucursal, usuario y usuario_sucursal
+pnpm db:studio           # mirá las tablas y sus datos
 curl localhost:3000/api/health
 ```
+
+Los tests de integración usan una base aparte, `panaderia_test`, que se borra y
+se vuelve a crear en cada corrida: nunca tocan tus datos de desarrollo.
 
 Con la base levantada, `/api/health` responde **200** y `"db": "ok"`.
 Con la base apagada responde **503** y `"db": "error"` con el detalle: el

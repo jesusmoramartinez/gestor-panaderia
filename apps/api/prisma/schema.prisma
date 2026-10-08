@@ -47,10 +47,11 @@ model Empresa {
   activa          Boolean @default(true)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   sucursales Sucursal[]
   usuarios   Usuario[]
+  auditorias Auditoria[]
 
   @@map("empresa")
 }
@@ -71,7 +72,7 @@ model Sucursal {
   activa    Boolean @default(true)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // onDelete: Restrict → la base impide borrar una empresa que tenga
   // sucursales. En este sistema no borramos nada (desactivamos), así que esto
@@ -107,10 +108,12 @@ model Usuario {
   ultimoAccesoAt DateTime?  @map("ultimo_acceso_at") @db.Timestamptz(6)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   empresa    Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   sucursales UsuarioSucursal[]
+  sesiones   Sesion[]
+  auditorias Auditoria[]
 
   @@index([empresaId])
   @@map("usuario")
@@ -141,4 +144,100 @@ model UsuarioSucursal {
   @@id([usuarioId, sucursalId])
   @@index([sucursalId])
   @@map("usuario_sucursal")
+}
+
+/// Qué se registró en la auditoría. Crece a medida que aparecen operaciones
+/// nuevas en cada fase.
+enum AccionAuditoria {
+  CREAR
+  ACTUALIZAR
+  DESACTIVAR
+  ANULAR
+  LOGIN
+  LOGIN_FALLIDO
+  LOGOUT
+
+  @@map("accion_auditoria")
+}
+
+/// Una sesión activa (un login).
+///
+/// ¿Por qué una tabla y no solo un JWT firmado? Porque un JWT es válido hasta
+/// que vence y NO se puede cancelar: si echás a un empleado, su token sigue
+/// funcionando. Con la sesión en una fila, se revoca y listo. El costo es una
+/// consulta por pedido, irrelevante para una panadería.
+///
+/// NOTA sobre la regla de empresa_id: esta tabla NO la lleva, y es a propósito.
+/// La regla vale para las tablas de NEGOCIO; `sesion` es infraestructura, se
+/// consulta siempre por token y su empresa se deduce del usuario. Agregar la
+/// columna sería un dato duplicado que puede quedar desincronizado.
+model Sesion {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId String @map("usuario_id") @db.Uuid
+
+  /// El HASH del token, nunca el token. Mismo razonamiento que la contraseña:
+  /// si alguien lee esta tabla, no puede hacerse pasar por nadie.
+  /// Acá alcanza SHA-256 (rápido) y no scrypt: el token son 256 bits
+  /// aleatorios, así que no hay nada que adivinar por fuerza bruta. El hash
+  /// lento se usa cuando el secreto lo eligió una persona.
+  tokenHash String @unique @map("token_hash")
+
+  expiraAt    DateTime  @map("expira_at") @db.Timestamptz(6)
+  /// Logout, o "cerrar sesión en todos los dispositivos".
+  revocadaAt  DateTime? @map("revocada_at") @db.Timestamptz(6)
+  ultimoUsoAt DateTime? @map("ultimo_uso_at") @db.Timestamptz(6)
+
+  /// Para el historial de accesos (¿desde dónde entró?).
+  ip        String?
+  userAgent String? @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([expiraAt])
+  @@map("sesion")
+}
+
+/// Quién cambió qué y cuándo.
+///
+/// Cubre lo que SÍ se puede modificar: catálogos, precios, usuarios,
+/// anulaciones y los accesos. Los movimientos de stock no se auditan acá
+/// porque ya son inmutables y llevan su propio usuario y fecha.
+model Auditoria {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  /// NULLABLE a propósito: un intento de login con un email que no existe no
+  /// pertenece a ninguna empresa, y ese intento igual hay que registrarlo.
+  empresaId String? @map("empresa_id") @db.Uuid
+  usuarioId String? @map("usuario_id") @db.Uuid
+
+  /// Qué tipo de cosa se tocó: 'usuario', 'insumo', 'recepcion_compra'...
+  entidad   String
+  /// El id de esa cosa. Nullable porque algunos eventos (un login fallido) no
+  /// apuntan a ninguna fila. Es una referencia POLIMÓRFICA: no puede tener
+  /// clave foránea, porque apunta a tablas distintas según el caso.
+  entidadId String?         @map("entidad_id") @db.Uuid
+  accion    AccionAuditoria
+
+  /// Foto del registro antes y después. jsonb es el tipo de Postgres para
+  /// guardar JSON consultable.
+  datosAntes   Json? @map("datos_antes")
+  datosDespues Json? @map("datos_despues")
+
+  ip String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // onDelete: Restrict, no SetNull. Con SetNull, borrar un usuario dejaría
+  // todo su historial de auditoría sin autor: una forma de tapar el rastro.
+  // Con Restrict, la base impide borrar a quien tenga auditoría. En este
+  // sistema los usuarios no se borran, se desactivan (activo = false).
+  empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId, createdAt])
+  @@index([entidad, entidadId])
+  @@map("auditoria")
 }
