@@ -9,7 +9,7 @@ import { aDecimal, esDecimalValido, normalizarNumero } from '../dominio/decimal.
  * TEXTO, se acepta escrito a la argentina ("32.500,50") y se normaliza. Nunca
  * como number: un precio en float arrastra error al valuar el stock.
  */
-const PrecioSchema = z
+export const PrecioSchema = z
   .string()
   .trim()
   .min(1, 'Hay que indicar un precio')
@@ -21,7 +21,7 @@ const PrecioSchema = z
  * Precio opcional: el <input> vacío llega como '' y significa "no sé el
  * precio", que es distinto de "cuesta cero".
  */
-const PrecioOpcional = z
+export const PrecioOpcional = z
   .union([z.literal(''), z.null(), PrecioSchema])
   .nullish()
   .transform((valor) => (valor === '' || valor === undefined ? null : valor));
@@ -201,6 +201,13 @@ export const ProveedorDeInsumoSchema = InsumoDeProveedorSchema.omit({ insumo: tr
     activo: z.boolean(),
     diasEntrega: z.number().int().nullable(),
   }),
+  /**
+   * El último precio llevado a UNA unidad base: lo único que se puede comparar
+   * entre una bolsa de 25 kg y una de 50 kg. Null si no hay precio.
+   */
+  costoBase: z.string().nullable(),
+  /** Cuál sale más barato y cuál más caro (pedido C-6 del cliente). */
+  comparacion: z.enum(['MAS_BARATO', 'MAS_CARO']).nullable(),
 });
 export type ProveedorDeInsumo = z.infer<typeof ProveedorDeInsumoSchema>;
 

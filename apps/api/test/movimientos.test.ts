@@ -922,8 +922,27 @@ describe('el CHECK de la base y la lógica de TypeScript dicen lo mismo', () => 
         let aceptado = true;
         try {
           await prisma.$transaction(async (tx) => {
+            // Desde la Fase 8 hay OTRO CHECK: una COMPRA tiene que venir de una
+            // recepción y tener costo. Se le da a todos los intentos, así este
+            // test sigue probando una sola cosa: el signo.
+            const proveedor = await tx.proveedor.findFirstOrThrow({
+              where: { empresaId: empresa.id },
+            });
+            const recepcion = await tx.recepcionCompra.create({
+              data: {
+                empresaId: empresa.id,
+                sucursalId: centralId,
+                proveedorId: proveedor.id,
+                numero: 999_999,
+                fecha: new Date(),
+                usuarioId: usuario.id,
+                operacionId: crypto.randomUUID(),
+              },
+            });
             await tx.movimientoStock.create({
               data: {
+                recepcionCompraId: recepcion.id,
+                costoUnitario: '1',
                 empresaId: empresa.id,
                 sucursalId: centralId,
                 insumoId: insumo.id,

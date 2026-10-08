@@ -5,9 +5,11 @@ import { AppError, describirError } from './lib/errores.js';
 import { auditoriaRouter } from './modules/auditoria/routes.js';
 import { authRouter } from './modules/auth/routes.js';
 import { categoriasRouter } from './modules/categorias/routes.js';
+import { comprasRouter } from './modules/compras/routes.js';
 import { healthRouter } from './modules/health/routes.js';
 import { insumosRouter } from './modules/insumos/routes.js';
 import { movimientosRouter } from './modules/movimientos/routes.js';
+import { plantillasRouter } from './modules/plantillas/routes.js';
 import { proveedoresRouter } from './modules/proveedores/routes.js';
 import { unidadesRouter } from './modules/unidades/routes.js';
 import { usuariosRouter } from './modules/usuarios/routes.js';
@@ -40,6 +42,8 @@ export function crearApp(): Express {
   app.use('/api', insumosRouter);
   app.use('/api', proveedoresRouter);
   app.use('/api', movimientosRouter);
+  app.use('/api', comprasRouter);
+  app.use('/api', plantillasRouter);
 
   // Cualquier otra ruta: 404 con la misma forma que el resto de los errores.
   app.use((_req, res) => {

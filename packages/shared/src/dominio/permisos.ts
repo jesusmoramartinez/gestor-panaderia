@@ -69,6 +69,32 @@ export const PERMISOS = [
    * lo tiene el empleado.
    */
   'ajuste:crear',
+  /**
+   * VER órdenes de compra, recepciones, plantillas y el costo promedio.
+   *
+   * Lleva permiso por la misma razón que `proveedor:ver`: son precios.
+   */
+  'compra:ver',
+  /**
+   * PEDIR: crear, editar, pedir, cancelar y cerrar órdenes de compra, y
+   * administrar las plantillas de pedidos recurrentes.
+   *
+   * Solo el dueño: respuesta C-13 del cliente ("solo el dueño compra").
+   */
+  'compra:pedir',
+  /**
+   * RECIBIR: registrar la llegada de mercadería, con orden o sin ella.
+   *
+   * Lo tiene también el encargado, en SU sucursal: el camión llega aunque el
+   * dueño no esté, y si nadie más puede cargarlo el stock queda mal hasta que
+   * vuelva. Decisión del cliente al arrancar la Fase 8.
+   */
+  'compra:recibir',
+  /**
+   * Anular una recepción. Solo el dueño: además del stock de una sucursal,
+   * cambia el costo promedio de TODA la empresa.
+   */
+  'compra:anular',
 ] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
@@ -97,6 +123,8 @@ export const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
     'movimiento:anular',
     'stock:forzar',
     'ajuste:crear',
+    'compra:ver',
+    'compra:recibir',
   ],
   // El empleado del turno carga lo que PASÓ en su sucursal: lo que usó y lo
   // que se perdió. No configura el catálogo, no ve precios, no anula nada y no

@@ -1,14 +1,16 @@
 // CAPA 3 — SERVICIO: las reglas del negocio. No sabe que existe HTTP.
-import type {
-  ActualizarProveedorInput,
-  ActualizarProveedorInsumoInput,
-  CrearProveedorInput,
-  CrearProveedorInsumoInput,
-  FiltroProveedores,
-  InsumoDeProveedor,
-  ProveedorDeInsumo,
-  ProveedorDetalle,
-  ProveedorResumen,
+import {
+  type ActualizarProveedorInput,
+  type ActualizarProveedorInsumoInput,
+  compararCostos,
+  costoPorUnidadBase,
+  type CrearProveedorInput,
+  type CrearProveedorInsumoInput,
+  type FiltroProveedores,
+  type InsumoDeProveedor,
+  type ProveedorDeInsumo,
+  type ProveedorDetalle,
+  type ProveedorResumen,
 } from '@panaderia/shared';
 
 import { registrarAuditoria } from '../../lib/auditoria.js';
@@ -92,9 +94,35 @@ function aInsumoDeProveedor(fila: FilaAsociacion): InsumoDeProveedor {
   };
 }
 
-/** Vista DESDE el insumo: "quién me lo provee". La misma fila, al revés. */
-function aProveedorDeInsumo(fila: FilaAsociacion): ProveedorDeInsumo {
-  return { ...aAsociacionComun(fila), proveedor: fila.proveedor };
+/**
+ * El último precio llevado a UNA unidad base.
+ *
+ * El precio se guarda por presentación ("la bolsa de 50 kg, $39.500"), pero
+ * para comparar dos proveedores hay que llevarlos a la misma vara: el kilo.
+ */
+function costoBaseDe(fila: FilaAsociacion): string | null {
+  if (fila.ultimoPrecio === null) return null;
+  const factor = fila.presentacion?.cantidadBase.toString() ?? '1';
+  return costoPorUnidadBase(fila.ultimoPrecio.toString(), factor).toString();
+}
+
+/**
+ * Vista DESDE el insumo: "quién me lo provee", con la comparación de precios
+ * que pidió el cliente (C-6): cuál sale más barato y cuál más caro.
+ *
+ * Solo se comparan las asociaciones ACTIVAS: un proveedor dado de baja no es
+ * una opción de compra, aunque haya sido el más barato.
+ */
+function aProveedoresDeInsumo(filas: readonly FilaAsociacion[]): ProveedorDeInsumo[] {
+  const costos = filas.map((fila) => (fila.activo ? costoBaseDe(fila) : null));
+  const marcas = compararCostos(costos);
+
+  return filas.map((fila, indice) => ({
+    ...aAsociacionComun(fila),
+    proveedor: fila.proveedor,
+    costoBase: costoBaseDe(fila),
+    comparacion: marcas[indice] ?? null,
+  }));
 }
 
 // ===========================================================================
@@ -133,7 +161,7 @@ export async function listarDeInsumo(
   if (!insumo) throw errores.noEncontrado('El insumo');
 
   const asociaciones = await repo.asociacionesDeInsumo(ctx.empresaId, insumoId);
-  return asociaciones.map(aProveedorDeInsumo);
+  return aProveedoresDeInsumo(asociaciones);
 }
 
 // ===========================================================================

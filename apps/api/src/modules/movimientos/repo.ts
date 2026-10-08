@@ -5,10 +5,9 @@ import { prisma } from '../../lib/db.js';
 /**
  * Todo lo que la pantalla y el historial necesitan de un movimiento.
  *
- * Fijate que NO trae `costoUnitario`: en esta fase siempre es null (el costo
- * promedio llega en la Fase 8) y cuando exista va a ser un dato de plata que
- * el empleado no tiene que recibir. Un campo que no se selecciona no se puede
- * filtrar por accidente más adelante.
+ * Fijate que NO trae `costoUnitario`: es un dato de plata y el historial lo ve
+ * también el empleado. Un campo que no se selecciona no se puede filtrar por
+ * accidente más adelante.
  */
 const SELECCION_MOVIMIENTO = {
   id: true,
@@ -31,6 +30,11 @@ const SELECCION_MOVIMIENTO = {
   // relación de la tabla consigo misma, y es lo que permite que la pantalla no
   // ofrezca "anular" dos veces.
   revertidoPor: { select: { id: true } },
+  // La recepción que lo originó, con el remito: "COMPRA · recepción 12 ·
+  // remito 0001-00004567". Sin precios: eso vive en la recepción.
+  recepcionCompra: {
+    select: { id: true, numero: true, numeroRemito: true, proveedor: { select: { nombre: true } } },
+  },
 } as const;
 
 export type FilaMovimiento = Prisma.MovimientoStockGetPayload<{
@@ -55,6 +59,9 @@ export function buscarMovimiento(empresaId: string, movimientoId: string) {
       sucursalId: true,
       motivoId: true,
       unidadIngresadaId: true,
+      // Solo para la reversa, que hereda el costo del original. No sale en la
+      // respuesta (aMovimiento no lo mira).
+      costoUnitario: true,
     },
   });
 }

@@ -60,6 +60,15 @@ function aMovimiento(fila: repo.FilaMovimiento): Movimiento {
       unidadBaseCodigo: fila.insumo.unidadBase.codigo,
     },
     sucursal: fila.sucursal,
+    recepcion:
+      fila.recepcionCompra === null
+        ? null
+        : {
+            id: fila.recepcionCompra.id,
+            numero: fila.recepcionCompra.numero,
+            numeroRemito: fila.recepcionCompra.numeroRemito,
+            proveedorNombre: fila.recepcionCompra.proveedor.nombre,
+          },
   };
 }
 
@@ -396,6 +405,20 @@ export async function anular(
     );
   }
 
+  // Una COMPRA no se anula suelta: se anula su RECEPCIÓN. Si se pudiera
+  // revertir el movimiento desde acá, el stock bajaría pero la orden seguiría
+  // diciendo "recibida", la recepción seguiría confirmada y el costo promedio
+  // no se recalcularía: tres verdades distintas sobre la misma compra.
+  if (original.tipo === 'COMPRA') {
+    throw new AppError(
+      'COMPRA_SE_ANULA_DESDE_RECEPCION',
+      `Esta compra se anula desde la recepción ${String(original.recepcionCompra?.numero ?? '')}, ` +
+        'así se corrigen juntos el stock, la orden y el costo.',
+      409,
+      { recepcionCompraId: original.recepcionCompra?.id ?? null },
+    );
+  }
+
   // El UNIQUE de revierte_a_id ya lo garantiza en la base; acá se chequea para
   // dar un mensaje entendible en lugar de un error de restricción.
   if (original.revertidoPor !== null) throw errores.movimientoYaRevertido();
@@ -421,6 +444,10 @@ export async function anular(
           motivoId: original.motivoId,
           notas: entrada.notas ?? `Anula el movimiento del ${original.fecha.toISOString()}`,
           revierteAId: original.id,
+          // Lo que vuelve, vuelve al costo con que salió. Sin esto, el motor
+          // le congelaría el promedio de HOY, y anular una merma de marzo en
+          // abril la valorizaría distinto de como se registró.
+          costoUnitario: original.costoUnitario?.toString() ?? null,
         },
       ],
       { forzar: entrada.forzar },

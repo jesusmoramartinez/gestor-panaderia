@@ -69,6 +69,17 @@ export type EntradaMovimiento = {
   notas?: string | null;
   /** Solo para REVERSA: a qué movimiento anula. */
   revierteAId?: string | null;
+  /**
+   * El costo por unidad base, si quien llama lo SABE: una compra (lo que se
+   * pagó) o la reversa de un movimiento (el costo del original).
+   *
+   * Si no viene (undefined), el motor congela el costo promedio del insumo en
+   * este momento. Eso es lo que valoriza las salidas: la merma de marzo queda
+   * valiendo lo que valía en marzo, aunque en abril la harina suba.
+   */
+  costoUnitario?: Numerico | null;
+  /** El documento de compra que origina el movimiento (Fase 8). */
+  recepcionCompraId?: string | null;
 };
 
 export type OpcionesRegistro = {
@@ -107,6 +118,8 @@ type DatosInsumo = {
   nombre: string;
   activo: boolean;
   unidadBase: UnidadConversion & { id: string };
+  /** El costo promedio actual: es el que se congela en las salidas. */
+  costoPromedio: string | null;
 };
 
 async function cargarInsumos(
@@ -122,6 +135,7 @@ async function cargarInsumos(
       id: true,
       nombre: true,
       activo: true,
+      costoPromedio: true,
       unidadBase: { select: { id: true, codigo: true, dimension: true, factorABase: true } },
     },
   });
@@ -141,6 +155,7 @@ async function cargarInsumos(
           // siempre se pasa por texto. Ver docs/aprendizaje/10.
           factorABase: fila.unidadBase.factorABase.toString(),
         },
+        costoPromedio: fila.costoPromedio?.toString() ?? null,
       },
     ]),
   );
@@ -472,6 +487,19 @@ export async function registrarMovimientos(
       motivoId = motivo.id;
     }
 
+    // Una COMPRA sin costo o sin recepción es un bug de quien llama (el CHECK
+    // de la base también la rechazaría, pero con un mensaje ilegible).
+    if (
+      entrada.tipo === 'COMPRA' &&
+      (entrada.costoUnitario == null || entrada.recepcionCompraId == null)
+    ) {
+      throw new AppError(
+        'ERROR_INTERNO',
+        'Una compra tiene que llegar al motor con su costo y su recepción.',
+        500,
+      );
+    }
+
     preparados.push(prepararMovimiento(entrada, insumo, unidadIngresada, motivoId));
   }
 
@@ -555,7 +583,16 @@ export async function registrarMovimientos(
       cantidadIngresada: preparado.cantidadIngresada.toString(),
       unidadIngresadaId: preparado.unidadIngresada.id,
       factorConversion: preparado.factorConversion.toString(),
-      // costoUnitario queda null: lo llena el costo promedio (Fase 8).
+      // El costo CONGELADO: el que trae quien llama (una compra, una
+      // reversa), o si no, el costo promedio de este momento. Puede quedar
+      // null si el insumo todavía no tuvo ninguna compra.
+      costoUnitario:
+        preparado.entrada.costoUnitario === undefined
+          ? preparado.insumo.costoPromedio
+          : preparado.entrada.costoUnitario === null
+            ? null
+            : preparado.entrada.costoUnitario.toString(),
+      recepcionCompraId: preparado.entrada.recepcionCompraId ?? null,
       fecha,
       usuarioId: ctx.usuarioId,
       motivoId: preparado.motivoId,

@@ -12,7 +12,7 @@ export const EstadoStockSchema = z.enum(ESTADOS_STOCK);
  * El signo lo pone el tipo del movimiento (ver `conSignoDelTipo`). Si el
  * formulario aceptara signos, "-30" de consumo sumaría stock.
  */
-const CantidadMovimientoSchema = z
+export const CantidadMovimientoSchema = z
   .string()
   .trim()
   .min(1, 'Hay que indicar una cantidad')
@@ -25,7 +25,7 @@ const UuidOpcional = z
   .nullish()
   .transform((valor) => (valor === '' || valor === undefined ? null : valor));
 
-const NotasOpcional = z
+export const NotasOpcional = z
   .string()
   .trim()
   .max(300, 'Máximo 300 caracteres')
@@ -42,7 +42,7 @@ const NotasOpcional = z
  * Esta validación no puede ser un CHECK en la base: Postgres solo admite
  * funciones inmutables en un CHECK, y `now()` no lo es.
  */
-const FechaHechoSchema = z
+export const FechaHechoSchema = z
   .union([z.literal(''), z.null(), z.iso.datetime({ offset: true })])
   .nullish()
   .transform((valor) => (valor === '' || valor === undefined || valor === null ? null : valor))
@@ -262,9 +262,10 @@ export const ListaMotivosSchema = z.array(MotivoSchema);
  * tiene ese tipo. Las fechas, como ISO 8601 en UTC; la pantalla las muestra en
  * hora de Argentina.
  *
- * Fijate que NO hay `costoUnitario`: en esta fase siempre sería null (el costo
- * promedio llega en la Fase 8) y, cuando exista, es un dato de plata que el
- * empleado no tiene que recibir. Un campo que no se manda no se puede filtrar.
+ * Fijate que NO hay `costoUnitario`, aunque desde la Fase 8 la base lo tiene:
+ * es un dato de plata y el historial lo ve también el empleado. Un campo que
+ * no se manda no se puede filtrar. El costo se ve en las recepciones, que sí
+ * piden el permiso `compra:ver`.
  */
 export const MovimientoSchema = z.object({
   id: z.uuid(),
@@ -291,6 +292,18 @@ export const MovimientoSchema = z.object({
   revertido: z.boolean(),
   insumo: z.object({ id: z.uuid(), nombre: z.string(), unidadBaseCodigo: z.string() }),
   sucursal: z.object({ id: z.uuid(), codigo: z.string(), nombre: z.string() }),
+  /**
+   * La recepción de compra que lo originó (o que anuló), con el remito para
+   * poder cruzarlo con el papel. Null en todo lo que no es una compra.
+   */
+  recepcion: z
+    .object({
+      id: z.uuid(),
+      numero: z.number().int(),
+      numeroRemito: z.string().nullable(),
+      proveedorNombre: z.string(),
+    })
+    .nullable(),
 });
 export type Movimiento = z.infer<typeof MovimientoSchema>;
 

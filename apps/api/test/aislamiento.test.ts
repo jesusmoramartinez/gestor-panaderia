@@ -1,9 +1,14 @@
 import type {
   EventoAuditoria,
   ListadoInsumos,
+  ListaOrdenes,
+  ListaRecepciones,
   Motivo,
+  OrdenDetalle,
+  Plantilla,
   ProveedorDetalle,
   ProveedorResumen,
+  RecepcionDetalle,
   StockPorSucursal,
   UnidadMedida,
   UsuarioResumen,
@@ -456,6 +461,148 @@ describe('aislamiento entre empresas', () => {
 
     expect(r.status).toBe(400);
     expect((r.cuerpo as { detalles: Record<string, string> }).detalles['motivoId']).toBeDefined();
+  });
+
+  // --- Fase 8: compras -----------------------------------------------------
+
+  /**
+   * Una orden y una recepción de Laferrere, para intentar llegar a ellas.
+   *
+   * Con un insumo y un proveedor NUEVOS, no los de la semilla: una recepción
+   * suma stock y actualiza el último precio del proveedor, y los tests de
+   * stock y de proveedores leen los datos de la semilla esperando que nadie
+   * los haya tocado.
+   */
+  async function comprasDeLaferrere(): Promise<{ ordenId: string; recepcionId: string }> {
+    await entrarComo('dueno@panaderia.test');
+    const sufijo = `${String(Date.now())}-${String(Math.floor(Math.random() * 1e6))}`;
+    const kg = await prisma.unidadMedida.findFirstOrThrow({
+      where: { empresaId: laferrere.empresaId, codigo: 'kg' },
+    });
+    const insumo = await api.post('/api/insumos', {
+      nombre: `Insumo aislamiento ${sufijo}`,
+      unidadBaseId: kg.id,
+    });
+    const proveedor = await api.post('/api/proveedores', {
+      nombre: `Proveedor aislamiento ${sufijo}`,
+    });
+    const insumoId = (insumo.cuerpo as { id: string }).id;
+    const proveedorId = (proveedor.cuerpo as { id: string }).id;
+
+    const orden = await api.post('/api/ordenes-compra', {
+      sucursalId: laferrere.sucursalCentralId,
+      proveedorId,
+      lineas: [{ insumoId, presentacionId: null, cantidad: '5' }],
+    });
+    expect(orden.status).toBe(201);
+    const recepcion = await api.post('/api/recepciones', {
+      sucursalId: laferrere.sucursalCentralId,
+      proveedorId,
+      lineas: [{ insumoId, presentacionId: null, cantidad: '1', precioUnitario: '740' }],
+    });
+    expect(recepcion.status).toBe(201);
+    api.olvidarCookies();
+    return {
+      ordenId: (orden.cuerpo as OrdenDetalle).id,
+      recepcionId: (recepcion.cuerpo as RecepcionDetalle).id,
+    };
+  }
+
+  it('una orden de compra ajena responde 404 y no se puede tocar', async () => {
+    const { ordenId } = await comprasDeLaferrere();
+    await entrarComo('dueno@vecina.test');
+
+    expect((await api.get(`/api/ordenes-compra/${ordenId}`)).status).toBe(404);
+    expect((await api.post(`/api/ordenes-compra/${ordenId}/cancelar`, {})).status).toBe(404);
+    expect((await api.post(`/api/ordenes-compra/${ordenId}/pedir`)).status).toBe(404);
+    const recibir = await api.post(`/api/ordenes-compra/${ordenId}/recepciones`, {
+      lineas: [
+        {
+          lineaOrdenId: '00000000-0000-4000-8000-000000000000',
+          cantidad: '1',
+          precioUnitario: '1',
+        },
+      ],
+    });
+    expect(recibir.status).toBe(404);
+
+    const sigue = await prisma.ordenCompra.findUniqueOrThrow({ where: { id: ordenId } });
+    expect(sigue.estado).toBe('PEDIDA');
+  });
+
+  it('una recepción ajena responde 404 y no se puede anular', async () => {
+    const { recepcionId } = await comprasDeLaferrere();
+    await entrarComo('dueno@vecina.test');
+
+    expect((await api.get(`/api/recepciones/${recepcionId}`)).status).toBe(404);
+    const anular = await api.post(`/api/recepciones/${recepcionId}/anular`, { motivo: 'Ataque' });
+    expect(anular.status).toBe(404);
+
+    const sigue = await prisma.recepcionCompra.findUniqueOrThrow({ where: { id: recepcionId } });
+    expect(sigue.estado).toBe('CONFIRMADA');
+  });
+
+  it('los listados de órdenes, recepciones y plantillas no cruzan empresas', async () => {
+    await comprasDeLaferrere();
+    await entrarComo('dueno@vecina.test');
+
+    const ordenes = (await api.get('/api/ordenes-compra')).cuerpo as ListaOrdenes;
+    const recepciones = (await api.get('/api/recepciones')).cuerpo as ListaRecepciones;
+    const plantillas = (await api.get('/api/plantillas-pedido?incluirInactivas=true'))
+      .cuerpo as Plantilla[];
+
+    const deLaferrere = await prisma.sucursal.findMany({
+      where: { empresaId: laferrere.empresaId },
+      select: { id: true },
+    });
+    const ajenas = new Set(deLaferrere.map((s) => s.id));
+    expect(ordenes.items.some((o) => ajenas.has(o.sucursal.id))).toBe(false);
+    expect(recepciones.items.some((r) => ajenas.has(r.sucursal.id))).toBe(false);
+    expect(plantillas.some((p) => ajenas.has(p.sucursal.id))).toBe(false);
+  });
+
+  it('no se le puede comprar a un proveedor ajeno ni comprar un insumo ajeno', async () => {
+    const vecina = await entrarComo('dueno@vecina.test');
+    const suSucursal = vecina.sucursales[0]?.id ?? '';
+    const suInsumo = await prisma.insumo.findFirstOrThrow({
+      where: { empresa: { nombre: { contains: 'Vecina' } } },
+    });
+    const suProveedor = await prisma.proveedor.findFirstOrThrow({
+      where: { empresa: { nombre: { contains: 'Vecina' } } },
+    });
+
+    const conProveedorAjeno = await api.post('/api/recepciones', {
+      sucursalId: suSucursal,
+      proveedorId: laferrere.molinoId,
+      lineas: [{ insumoId: suInsumo.id, presentacionId: null, cantidad: '1', precioUnitario: '1' }],
+    });
+    expect(conProveedorAjeno.status).toBe(400);
+
+    const conInsumoAjeno = await api.post('/api/ordenes-compra', {
+      sucursalId: suSucursal,
+      proveedorId: suProveedor.id,
+      lineas: [{ insumoId: laferrere.harina000Id, presentacionId: null, cantidad: '1' }],
+    });
+    expect(conInsumoAjeno.status).toBe(400);
+
+    const plantillaAjena = await api.post('/api/plantillas-pedido', {
+      nombre: 'Robo',
+      sucursalId: suSucursal,
+      proveedorId: suProveedor.id,
+      lineas: [{ insumoId: laferrere.harina000Id, presentacionId: null, cantidad: '1' }],
+    });
+    expect(plantillaAjena.status).toBe(400);
+
+    // Y en la otra empresa no entró ni un movimiento de compra de la Vecina.
+    const colados = await prisma.movimientoStock.count({
+      where: { insumoId: laferrere.harina000Id, empresaId: { not: laferrere.empresaId } },
+    });
+    expect(colados).toBe(0);
+  });
+
+  it('el costo promedio de un insumo ajeno responde 404', async () => {
+    await entrarComo('dueno@vecina.test');
+    expect((await api.get(`/api/insumos/${laferrere.harina000Id}/costo`)).status).toBe(404);
   });
 
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {

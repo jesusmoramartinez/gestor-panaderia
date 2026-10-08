@@ -28,3 +28,30 @@ const formateadorFechaHora = new Intl.DateTimeFormat('es-AR', {
 export function formatearFechaArgentina(fecha: Date): string {
   return formateadorFechaHora.format(fecha);
 }
+
+// 'en-CA' es un truco conocido: es el único formato de Intl que escribe las
+// fechas como AAAA-MM-DD, que es justo el que necesitamos para compararlas.
+const formateadorDia = new Intl.DateTimeFormat('en-CA', {
+  timeZone: ZONA_HORARIA_ARGENTINA,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+/**
+ * Qué DÍA es en Argentina en este instante, como 'AAAA-MM-DD'.
+ *
+ * Hace falta para las fechas que son días de calendario y no instantes (la
+ * fecha estimada de entrega de una orden: "llega el jueves"). Preguntar "¿ya
+ * pasó el jueves?" con el día en UTC fallaría todas las noches entre las 21 y
+ * las 24, cuando en UTC ya es mañana.
+ */
+export function diaEnArgentina(instante: Date): string {
+  return formateadorDia.format(instante);
+}
+
+/** '2026-10-08' → '08/10/2026'. Para mostrar un día de calendario. */
+export function formatearDia(dia: string): string {
+  const [anio, mes, diaDelMes] = dia.split('-');
+  return `${diaDelMes ?? ''}/${mes ?? ''}/${anio ?? ''}`;
+}

@@ -58,6 +58,10 @@ model Empresa {
   proveedores Proveedor[]
   motivos     MotivoMovimiento[]
   movimientos MovimientoStock[]
+  contadores  ContadorDocumento[]
+  ordenes     OrdenCompra[]
+  recepciones RecepcionCompra[]
+  plantillas  PlantillaPedido[]
 
   @@map("empresa")
 }
@@ -87,6 +91,9 @@ model Sucursal {
   usuarios        UsuarioSucursal[]
   insumoSucursals InsumoSucursal[]
   movimientos     MovimientoStock[]
+  ordenes         OrdenCompra[]
+  recepciones     RecepcionCompra[]
+  plantillas      PlantillaPedido[]
 
   // La unicidad SIEMPRE empieza por empresa_id: dos panaderías distintas
   // pueden tener una sucursal con el mismo código.
@@ -123,6 +130,9 @@ model Usuario {
   sesiones    Sesion[]
   auditorias  Auditoria[]
   movimientos MovimientoStock[]
+  ordenes     OrdenCompra[]
+  recepciones RecepcionCompra[] @relation("RecepcionCargadaPor")
+  anulaciones RecepcionCompra[] @relation("RecepcionAnuladaPor")
 
   @@index([empresaId])
   @@map("usuario")
@@ -348,16 +358,30 @@ model Insumo {
 
   activo Boolean @default(true)
 
+  /// COSTO PROMEDIO PONDERADO por unidad base, para toda la empresa.
+  ///
+  /// Es un valor DERIVADO, como sería un stock guardado: la verdad está en los
+  /// movimientos COMPRA. Por eso nunca se edita a mano ni se le suma o resta:
+  /// después de cada recepción (o anulación) se RECONSTRUYE recorriendo los
+  /// movimientos con `calcularCostoPromedio`. Null = todavía no hubo ninguna
+  /// compra, y el costo es desconocido (que no es lo mismo que cero).
+  ///
+  /// Es por empresa y no por sucursal (decisión de PLAN.md 3.7).
+  costoPromedio Decimal? @map("costo_promedio") @db.Decimal(18, 4)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa        Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  categoria      CategoriaInsumo?     @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
-  unidadBase     UnidadMedida         @relation(fields: [unidadBaseId], references: [id], onDelete: Restrict)
-  presentaciones PresentacionInsumo[]
-  porSucursal    InsumoSucursal[]
-  proveedores    ProveedorInsumo[]
-  movimientos    MovimientoStock[]
+  empresa         Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  categoria       CategoriaInsumo?       @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  unidadBase      UnidadMedida           @relation(fields: [unidadBaseId], references: [id], onDelete: Restrict)
+  presentaciones  PresentacionInsumo[]
+  porSucursal     InsumoSucursal[]
+  proveedores     ProveedorInsumo[]
+  movimientos     MovimientoStock[]
+  lineasOrden     LineaOrdenCompra[]
+  lineasRecepcion LineaRecepcionCompra[]
+  lineasPlantilla LineaPlantillaPedido[]
 
   // Nombre único por empresa: dos filas "Harina 000" partirían el stock en dos
   // sin que nadie se dé cuenta.
@@ -394,8 +418,11 @@ model PresentacionInsumo {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  insumo      Insumo            @relation(fields: [insumoId], references: [id], onDelete: Cascade)
-  proveedores ProveedorInsumo[]
+  insumo          Insumo                 @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  proveedores     ProveedorInsumo[]
+  lineasOrden     LineaOrdenCompra[]
+  lineasRecepcion LineaRecepcionCompra[]
+  lineasPlantilla LineaPlantillaPedido[]
 
   @@unique([insumoId, nombre])
   @@index([insumoId])
@@ -464,8 +491,11 @@ model Proveedor {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  insumos ProveedorInsumo[]
+  empresa     Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  insumos     ProveedorInsumo[]
+  ordenes     OrdenCompra[]
+  recepciones RecepcionCompra[]
+  plantillas  PlantillaPedido[]
 
   @@unique([empresaId, nombre])
   @@index([empresaId, activo])
@@ -638,9 +668,14 @@ model MovimientoStock {
   /// va a seguir siendo cierto en cinco años.
   factorConversion  Decimal @map("factor_conversion") @db.Decimal(20, 10)
 
-  /// Costo por unidad base en el momento del movimiento. Queda NULL en esta
-  /// fase: lo llena el costo promedio ponderado, que llega con las compras
-  /// (Fase 8).
+  /// Costo por unidad base EN EL MOMENTO del movimiento, CONGELADO.
+  ///
+  ///   - en una COMPRA: lo que costó de verdad (precio ÷ factor);
+  ///   - en todo lo demás: el costo promedio del insumo en ese momento, o
+  ///     null si todavía no hubo ninguna compra.
+  ///
+  /// Se congela porque el promedio cambia con cada compra: la merma de marzo
+  /// tiene que seguir valiendo lo que valía en marzo.
   costoUnitario Decimal? @map("costo_unitario") @db.Decimal(18, 4)
 
   /// CUÁNDO OCURRIÓ en la realidad. Es distinto de created_at (cuándo se
@@ -660,6 +695,11 @@ model MovimientoStock {
   /// y es lo que permite anular una carga completa o mostrarla junta.
   operacionId String @map("operacion_id") @db.Uuid
 
+  /// El documento que lo originó: la recepción de compra. Obligatorio en los
+  /// movimientos COMPRA (lo exige un CHECK) y también en sus reversas, para
+  /// que el historial pueda decir "anulación de la recepción 12".
+  recepcionCompraId String? @map("recepcion_compra_id") @db.Uuid
+
   /// Si este movimiento anula a otro. UNIQUE: un movimiento se puede revertir
   /// UNA sola vez, y eso lo garantiza la base, no la buena memoria del código.
   revierteAId String? @unique @map("revierte_a_id") @db.Uuid
@@ -676,6 +716,7 @@ model MovimientoStock {
   unidadIngresada UnidadMedida      @relation(fields: [unidadIngresadaId], references: [id], onDelete: Restrict)
   usuario         Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   motivo          MotivoMovimiento? @relation(fields: [motivoId], references: [id], onDelete: Restrict)
+  recepcionCompra RecepcionCompra?  @relation(fields: [recepcionCompraId], references: [id], onDelete: Restrict)
 
   // Relación de la tabla CONSIGO MISMA: una reversa apunta al movimiento que
   // anula. Como revierteAId es @unique, Prisma la trata como uno-a-uno, y por
@@ -697,5 +738,272 @@ model MovimientoStock {
   @@index([empresaId, insumoId, fecha])
   // Para traer o anular una operación completa.
   @@index([operacionId])
+  @@index([recepcionCompraId])
   @@map("movimiento_stock")
+}
+
+// ===========================================================================
+// FASE 8 — Compras: orden, recepción y costo promedio
+// ===========================================================================
+
+/// Qué documentos llevan número correlativo.
+enum TipoDocumento {
+  ORDEN_COMPRA
+  RECEPCION_COMPRA
+
+  @@map("tipo_documento")
+}
+
+/// El último número usado de cada tipo de documento, por empresa.
+///
+/// POR QUÉ UNA TABLA Y NO `MAX(numero) + 1`: si dos personas confirman una
+/// recepción en el mismo instante, las dos leen el mismo máximo y las dos
+/// generan el número 15. Es la misma condición de carrera que el stock
+/// negativo, y se resuelve igual: con el candado de una fila. Ver
+/// `siguienteNumero` en el módulo de compras.
+model ContadorDocumento {
+  empresaId     String        @map("empresa_id") @db.Uuid
+  tipoDocumento TipoDocumento @map("tipo_documento")
+  ultimoNumero  Int           @default(0) @map("ultimo_numero")
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  // Clave primaria COMPUESTA: hay una sola fila por empresa y tipo, y por eso
+  // el candado de esa fila es "el" candado de la numeración.
+  @@id([empresaId, tipoDocumento])
+  @@map("contador_documento")
+}
+
+/// Los estados de una orden de compra. La máquina de estados (qué se puede
+/// hacer desde cada uno) está en packages/shared/src/dominio/compras.ts.
+enum EstadoOrdenCompra {
+  BORRADOR
+  PEDIDA
+  PARCIAL
+  RECIBIDA
+  CERRADA
+  CANCELADA
+
+  @@map("estado_orden_compra")
+}
+
+/// Lo que se le PIDE al proveedor. NO mueve stock: pedir no es tener.
+///
+/// Es opcional: una recepción puede existir sin orden (recepción directa),
+/// porque muchas compras se hacen por teléfono y llegan el mismo día.
+model OrdenCompra {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String            @map("empresa_id") @db.Uuid
+  /// La sucursal que va a RECIBIR la mercadería.
+  sucursalId  String            @map("sucursal_id") @db.Uuid
+  proveedorId String            @map("proveedor_id") @db.Uuid
+  /// Correlativo por empresa: "OC 15". Lo asigna el contador de documentos.
+  numero      Int
+  estado      EstadoOrdenCompra
+
+  /// Un DÍA de calendario ("llega el jueves"), no un instante: por eso es
+  /// `date` y no `timestamptz`. La regla "fechas en UTC" es para instantes;
+  /// un día no tiene hora, y guardarlo como medianoche UTC lo haría caer en el
+  /// miércoles a las 21 h de Argentina.
+  fechaEntregaEstimada DateTime? @map("fecha_entrega_estimada") @db.Date
+  notas                String?
+  usuarioId            String    @map("usuario_id") @db.Uuid
+
+  /// Cuándo se le pidió al proveedor. Null mientras es borrador.
+  pedidaAt   DateTime? @map("pedida_at") @db.Timestamptz(6)
+  /// Cuándo se cerró con faltante o se canceló, y por qué.
+  cerradaAt  DateTime? @map("cerrada_at") @db.Timestamptz(6)
+  notaCierre String?   @map("nota_cierre")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa     Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursal    Sucursal           @relation(fields: [sucursalId], references: [id], onDelete: Restrict)
+  proveedor   Proveedor          @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  usuario     Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  lineas      LineaOrdenCompra[]
+  recepciones RecepcionCompra[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, estado])
+  @@index([empresaId, sucursalId])
+  @@index([proveedorId])
+  @@map("orden_compra")
+}
+
+/// Una línea de la orden: "10 bolsas de 25 kg de Harina 000 a $18.500".
+///
+/// NO tiene `cantidad_recibida`, y es a propósito: lo recibido se CALCULA
+/// sumando las recepciones confirmadas de esta línea. Misma filosofía que el
+/// stock: un solo lugar con la verdad. Si hubiera una columna, anular una
+/// recepción obligaría a acordarse de restarla, y el día que alguien se olvide
+/// la orden diría "recibida" con la mercadería devuelta.
+model LineaOrdenCompra {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Columna sin clave foránea, igual que en presentacion_insumo: es un dato
+  /// derivado (sale de la orden) que está para filtrar sin un join.
+  empresaId      String  @map("empresa_id") @db.Uuid
+  ordenCompraId  String  @map("orden_compra_id") @db.Uuid
+  insumoId       String  @map("insumo_id") @db.Uuid
+  /// Null = se pide en la unidad base del insumo.
+  presentacionId String? @map("presentacion_id") @db.Uuid
+
+  /// En presentaciones: 10 (bolsas).
+  cantidad         Decimal  @db.Decimal(18, 6)
+  /// SNAPSHOT de cuánto trae la presentación HOY: 25. Si mañana alguien la
+  /// corrige a 24, esta orden tiene que seguir diciendo lo que se pidió.
+  factorConversion Decimal  @map("factor_conversion") @db.Decimal(20, 10)
+  /// cantidad × factor = 250 kg. Es con lo que se compara lo recibido.
+  cantidadBase     Decimal  @map("cantidad_base") @db.Decimal(18, 6)
+  /// Precio de UNA presentación. Nullable: se puede pedir sin saber el precio,
+  /// y se carga al recibir (respuesta C-9 del cliente).
+  precioUnitario   Decimal? @map("precio_unitario") @db.Decimal(18, 4)
+
+  orden        OrdenCompra            @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  insumo       Insumo                 @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  presentacion PresentacionInsumo?    @relation(fields: [presentacionId], references: [id], onDelete: Restrict)
+  recepciones  LineaRecepcionCompra[]
+
+  // Un insumo una sola vez por orden: si estuviera dos veces, "cuánto falta"
+  // de la harina tendría dos respuestas.
+  @@unique([ordenCompraId, insumoId])
+  @@index([insumoId])
+  @@map("linea_orden_compra")
+}
+
+enum EstadoRecepcion {
+  CONFIRMADA
+  ANULADA
+
+  @@map("estado_recepcion")
+}
+
+/// La LLEGADA efectiva de mercadería. Esto sí mueve stock.
+///
+/// Se confirma al guardarla (no tiene borrador): lo que llegó, llegó. Si se
+/// cargó mal, se ANULA, y la anulación escribe las reversas de sus
+/// movimientos. Nunca se edita ni se borra, igual que un movimiento.
+model RecepcionCompra {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId     String          @map("empresa_id") @db.Uuid
+  sucursalId    String          @map("sucursal_id") @db.Uuid
+  proveedorId   String          @map("proveedor_id") @db.Uuid
+  /// Null = recepción DIRECTA, sin orden previa.
+  ordenCompraId String?         @map("orden_compra_id") @db.Uuid
+  numero        Int
+  /// Cuándo llegó en la realidad (puede cargarse después).
+  fecha         DateTime        @db.Timestamptz(6)
+  /// El papel que trajo el repartidor, para poder cruzarlo.
+  numeroRemito  String?         @map("numero_remito")
+  numeroFactura String?         @map("numero_factura")
+  notas         String?
+  estado        EstadoRecepcion @default(CONFIRMADA)
+  usuarioId     String          @map("usuario_id") @db.Uuid
+  /// El operacion_id de los movimientos COMPRA que escribió.
+  operacionId   String          @map("operacion_id") @db.Uuid
+
+  anuladaAt       DateTime? @map("anulada_at") @db.Timestamptz(6)
+  anuladaPorId    String?   @map("anulada_por_id") @db.Uuid
+  motivoAnulacion String?   @map("motivo_anulacion")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa     Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursal    Sucursal               @relation(fields: [sucursalId], references: [id], onDelete: Restrict)
+  proveedor   Proveedor              @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  orden       OrdenCompra?           @relation(fields: [ordenCompraId], references: [id], onDelete: Restrict)
+  // Dos relaciones con la MISMA tabla (usuario): quién la cargó y quién la
+  // anuló. Prisma necesita un nombre para distinguirlas.
+  usuario     Usuario                @relation("RecepcionCargadaPor", fields: [usuarioId], references: [id], onDelete: Restrict)
+  anuladaPor  Usuario?               @relation("RecepcionAnuladaPor", fields: [anuladaPorId], references: [id], onDelete: Restrict)
+  lineas      LineaRecepcionCompra[]
+  movimientos MovimientoStock[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, sucursalId, fecha])
+  @@index([ordenCompraId])
+  @@index([proveedorId])
+  @@map("recepcion_compra")
+}
+
+/// Una línea de la recepción: lo que llegó de UN insumo, y a qué precio.
+model LineaRecepcionCompra {
+  id                 String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId          String  @map("empresa_id") @db.Uuid
+  recepcionCompraId  String  @map("recepcion_compra_id") @db.Uuid
+  /// Qué línea de la orden cumple. Null en una recepción directa.
+  lineaOrdenCompraId String? @map("linea_orden_compra_id") @db.Uuid
+  insumoId           String  @map("insumo_id") @db.Uuid
+  presentacionId     String? @map("presentacion_id") @db.Uuid
+
+  cantidad          Decimal @db.Decimal(18, 6)
+  factorConversion  Decimal @map("factor_conversion") @db.Decimal(20, 10)
+  cantidadBase      Decimal @map("cantidad_base") @db.Decimal(18, 6)
+  /// Lo que se pagó por UNA presentación. Obligatorio: el precio se carga en
+  /// cada compra (respuesta C-7 del cliente).
+  precioUnitario    Decimal @map("precio_unitario") @db.Decimal(18, 4)
+  /// precio ÷ factor: lo que costó UNA unidad base. $25.000 / 25 = $1.000/kg.
+  /// Es el número que entra al costo promedio.
+  costoUnitarioBase Decimal @map("costo_unitario_base") @db.Decimal(18, 4)
+
+  recepcion    RecepcionCompra     @relation(fields: [recepcionCompraId], references: [id], onDelete: Restrict)
+  lineaOrden   LineaOrdenCompra?   @relation(fields: [lineaOrdenCompraId], references: [id], onDelete: Restrict)
+  insumo       Insumo              @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  presentacion PresentacionInsumo? @relation(fields: [presentacionId], references: [id], onDelete: Restrict)
+
+  @@unique([recepcionCompraId, insumoId])
+  @@index([lineaOrdenCompraId])
+  @@index([insumoId])
+  @@map("linea_recepcion_compra")
+}
+
+/// Un pedido que se repite, guardado con nombre: "Pedido semanal Molino".
+///
+/// Pedido del cliente: hay pedidos recurrentes, y armarlos de cero cada lunes
+/// es justo el trabajo que el sistema le tiene que ahorrar al dueño. La
+/// plantilla NO se gasta al usarla: precarga una orden nueva y sigue ahí.
+///
+/// No guarda precios, a propósito: con inflación, el precio de la plantilla
+/// estaría viejo a la segunda semana. Al usarla, el precio se sugiere desde el
+/// último que se pagó (`proveedor_insumo.ultimo_precio`).
+model PlantillaPedido {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId   String  @map("empresa_id") @db.Uuid
+  nombre      String
+  proveedorId String  @map("proveedor_id") @db.Uuid
+  sucursalId  String  @map("sucursal_id") @db.Uuid
+  notas       String?
+  activa      Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa   Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  proveedor Proveedor              @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  sucursal  Sucursal               @relation(fields: [sucursalId], references: [id], onDelete: Restrict)
+  lineas    LineaPlantillaPedido[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId, activa])
+  @@map("plantilla_pedido")
+}
+
+model LineaPlantillaPedido {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId      String  @map("empresa_id") @db.Uuid
+  plantillaId    String  @map("plantilla_id") @db.Uuid
+  insumoId       String  @map("insumo_id") @db.Uuid
+  presentacionId String? @map("presentacion_id") @db.Uuid
+  /// En presentaciones, igual que en la orden.
+  cantidad       Decimal @db.Decimal(18, 6)
+
+  plantilla    PlantillaPedido     @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+  insumo       Insumo              @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  presentacion PresentacionInsumo? @relation(fields: [presentacionId], references: [id], onDelete: Restrict)
+
+  @@unique([plantillaId, insumoId])
+  @@index([insumoId])
+  @@map("linea_plantilla_pedido")
 }

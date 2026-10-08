@@ -72,7 +72,24 @@ describe('matriz de permisos', () => {
       'movimiento:anular',
       'stock:forzar',
       'ajuste:crear',
+      'compra:ver',
+      'compra:recibir',
     ]);
+  });
+
+  it('pedir y anular compras es solo del dueño; recibir, también del encargado (C-13)', () => {
+    expect(tienePermiso('ENCARGADO', 'compra:pedir')).toBe(false);
+    expect(tienePermiso('ENCARGADO', 'compra:anular')).toBe(false);
+    expect(tienePermiso('ENCARGADO', 'compra:recibir')).toBe(true);
+    // El empleado no ve precios: ni órdenes ni recepciones.
+    for (const permiso of [
+      'compra:ver',
+      'compra:pedir',
+      'compra:recibir',
+      'compra:anular',
+    ] as const) {
+      expect(tienePermiso('EMPLEADO', permiso), permiso).toBe(false);
+    }
   });
 
   it('el encargado puede administrar el catálogo de insumos', () => {
