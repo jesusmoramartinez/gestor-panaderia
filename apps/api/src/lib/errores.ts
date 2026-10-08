@@ -60,6 +60,42 @@ export const errores = {
   noEncontrado: (que = 'El recurso') => new AppError('NO_ENCONTRADO', `${que} no existe.`, 404),
 
   nombreDuplicado: (que: string) => new AppError('NOMBRE_DUPLICADO', `Ya existe ${que}.`, 409),
+
+  /**
+   * No hay stock suficiente para la salida que se pidió.
+   *
+   * Es 409 (conflicto) y no 400: el pedido está bien formado, lo que pasa es
+   * que choca con el estado actual del sistema. Y el mensaje DICE CUÁNTO HAY:
+   * un "no se puede" sin el número obliga a la persona a irse a otra pantalla
+   * a averiguarlo.
+   */
+  stockInsuficiente: (detalle: {
+    insumoId: string;
+    insumoNombre: string;
+    sucursalNombre: string;
+    disponible: string;
+    solicitado: string;
+    unidad: string;
+  }) =>
+    new AppError(
+      'STOCK_INSUFICIENTE',
+      `Hay ${detalle.disponible} ${detalle.unidad} de ${detalle.insumoNombre} en ` +
+        `${detalle.sucursalNombre} y querés sacar ${detalle.solicitado} ${detalle.unidad}.`,
+      409,
+      detalle,
+    ),
+
+  /** Se intentó convertir entre dimensiones distintas (kg → litros). */
+  dimensionIncompatible: (mensaje: string, detalles?: unknown) =>
+    new AppError('DIMENSION_INCOMPATIBLE', mensaje, 400, detalles),
+
+  /** Ya existe una reversa de ese movimiento. El UNIQUE de la base lo respalda. */
+  movimientoYaRevertido: () =>
+    new AppError(
+      'MOVIMIENTO_YA_REVERTIDO',
+      'Ese movimiento ya fue anulado: no se puede anular dos veces.',
+      409,
+    ),
 };
 
 /**

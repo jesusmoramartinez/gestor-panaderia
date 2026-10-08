@@ -5,10 +5,13 @@ import { Inicio } from './routes/Inicio';
 import { InsumoDetalle } from './routes/InsumoDetalle';
 import { InsumoNuevo } from './routes/InsumoNuevo';
 import { Insumos } from './routes/Insumos';
+import { CargarMovimiento } from './routes/CargarMovimiento';
+import { HistorialInsumo } from './routes/HistorialInsumo';
 import { Login } from './routes/Login';
 import { ProveedorDetalle } from './routes/ProveedorDetalle';
 import { ProveedorNuevo } from './routes/ProveedorNuevo';
 import { Proveedores } from './routes/Proveedores';
+import { Stock } from './routes/Stock';
 
 /**
  * El mapa de pantallas de la aplicación.
@@ -34,6 +37,14 @@ export function App() {
         {/* Igual que con los insumos: "nuevo" antes que ":id". */}
         <Route path="/proveedores/nuevo" element={<ProveedorNuevo />} />
         <Route path="/proveedores/:id" element={<ProveedorDetalle />} />
+
+        <Route path="/stock" element={<Stock />} />
+        {/* Las tres cargas son la misma pantalla con distinta configuración.
+            Van ANTES de /stock/:insumoId, igual que /insumos/nuevo. */}
+        <Route path="/stock/consumo" element={<CargarMovimiento clase="CONSUMO" />} />
+        <Route path="/stock/merma" element={<CargarMovimiento clase="MERMA" />} />
+        <Route path="/stock/saldo-inicial" element={<CargarMovimiento clase="SALDO_INICIAL" />} />
+        <Route path="/stock/:insumoId" element={<HistorialInsumo />} />
       </Route>
 
       {/* Cualquier URL que no exista vuelve al inicio. */}

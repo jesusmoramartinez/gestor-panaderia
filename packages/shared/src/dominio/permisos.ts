@@ -33,6 +33,33 @@ export const PERMISOS = [
   'proveedor:ver',
   /** Crear, editar y desactivar proveedores y sus asociaciones con insumos. */
   'proveedor:editar',
+  /**
+   * Cargar el saldo inicial de un insumo en una sucursal.
+   *
+   * No lo tiene el empleado: es el punto de partida de todo el kardex, y
+   * cargarlo mal desvía el stock desde el día uno.
+   */
+  'stock:cargar-inicial',
+  /** Registrar el consumo de producción. El empleado del turno lo necesita. */
+  'consumo:crear',
+  /** Registrar una merma, siempre con motivo. También la carga el empleado. */
+  'merma:crear',
+  /**
+   * Anular un movimiento con una reversa (contra-asiento).
+   *
+   * Uno de los dos permisos PELIGROSOS del sistema. Supuesto de la pregunta
+   * C-24 de PLAN.md: lo tienen el dueño y el encargado.
+   */
+  'movimiento:anular',
+  /**
+   * Dejar el stock en negativo a propósito.
+   *
+   * El otro permiso peligroso. No es un capricho: si el sistema dice 12 kg y
+   * en el depósito hay 20 porque falta cargar una compra, trabar al panadero
+   * no arregla nada. Pero cada vez que se usa queda registrado en la
+   * auditoría con el nombre de quien lo hizo.
+   */
+  'stock:forzar',
 ] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
@@ -50,8 +77,22 @@ export const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
   // cualquiera que cargue stock), solo modificarlos. La excepción es el de
   // proveedores: es quien llama al molino cuando falta harina, y para eso
   // necesita ver y corregir precios y códigos de artículo.
-  ENCARGADO: ['usuario:ver', 'insumo:editar', 'proveedor:ver', 'proveedor:editar'],
-  EMPLEADO: [],
+  ENCARGADO: [
+    'usuario:ver',
+    'insumo:editar',
+    'proveedor:ver',
+    'proveedor:editar',
+    'stock:cargar-inicial',
+    'consumo:crear',
+    'merma:crear',
+    'movimiento:anular',
+    'stock:forzar',
+  ],
+  // El empleado del turno carga lo que PASÓ en su sucursal: lo que usó y lo
+  // que se perdió. No configura el catálogo, no ve precios, no anula nada y no
+  // puede dejar el stock en negativo. Ver el stock y el historial no lleva
+  // permiso: son cantidades, no plata.
+  EMPLEADO: ['consumo:crear', 'merma:crear'],
 };
 
 export function tienePermiso(rol: Rol, permiso: Permiso): boolean {

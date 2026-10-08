@@ -13,7 +13,7 @@ Sistema web de gestión para una panadería con **dos sucursales**: una **centra
 
 El sistema está pensado para **venderse después a otras panaderías**, así que es **multi-empresa** desde el primer día: todas las tablas de negocio llevan `empresa_id` y los datos de una empresa nunca pueden verse desde otra.
 
-**Etapa actual: control de stock de materia prima (insumos).**
+**Etapa actual: control de stock de materia prima (insumos).** Fases 0 a 6 cerradas: el motor de movimientos ya calcula el stock desde el kardex.
 
 Incluye: empresa/sucursales/usuarios con roles · catálogo de insumos con unidades y conversiones · proveedores · compras con recepción total o parcial · stock por sucursal basado en movimientos (kardex) · consumo manual · conteo físico y ajustes · mermas · transferencias entre sucursales · alertas de stock bajo y vista de reposición · historial de movimientos.
 
@@ -68,6 +68,9 @@ Estas palabras se usan **en español en el código** (tablas, campos, tipos, fun
 | **Reposición**                     | La lista de "qué hay que comprar", agrupada por sucursal y por proveedor.                                                                                                                                                                                                                                                              |
 | **Proveedor preferido**            | A quién se le compra un insumo por defecto. Hay **uno solo por insumo** (índice único parcial); marcar uno nuevo desmarca al anterior. Define bajo qué proveedor se agrupa el insumo en la reposición.                                                                                                                                 |
 | **Costo promedio ponderado (CPP)** | Forma de valuar el stock: cada entrada actualiza el costo promedio del insumo según la cantidad y el precio que entró. Las salidas se valorizan a ese promedio.                                                                                                                                                                        |
+| **Operación (`operacion_id`)**     | Etiqueta que agrupa los movimientos escritos en la misma carga: un consumo de 6 insumos deja 6 filas con el mismo `operacion_id`. No es clave foránea.                                                                                                                                                                                 |
+| **Bloqueo pesimista**              | Pedirle a Postgres el candado de una fila (`SELECT ... FOR UPDATE`) **antes** de leer lo que se va a validar, para que dos usuarios simultáneos no lean el mismo saldo. Se bloquea la fila `insumo_sucursal`, y siempre en el mismo orden.                                                                                             |
+| **Forzar stock negativo**          | Registrar una salida que deja el saldo por debajo de cero, con el permiso `stock:forzar`. El movimiento queda con `forzado = true` y se escribe una fila de auditoría `FORZAR_STOCK_NEGATIVO`.                                                                                                                                         |
 | **Contra-asiento / reversa**       | Para corregir un movimiento no se lo borra: se escribe otro movimiento igual y opuesto que lo anula. El historial queda completo.                                                                                                                                                                                                      |
 | **Auditoría**                      | Registro de quién cambió qué y cuándo, para todo lo que **sí** se puede modificar (catálogos, precios, usuarios, anulaciones).                                                                                                                                                                                                         |
 | **Empresa (tenant)**               | El "inquilino" del sistema. Cada panadería cliente es una empresa; comparten las tablas y jamás los datos.                                                                                                                                                                                                                             |
@@ -183,8 +186,10 @@ Hay dos clases y viven en lugares distintos:
 8. **Los movimientos de stock son inmutables.** No hay `UPDATE` ni `DELETE` sobre `movimiento_stock`: se corrige con una reversa.
 9. **El stock nunca se guarda ni se edita: se calcula** sumando los movimientos.
 10. **No se borra: se desactiva** (`activo = false`) en todos los catálogos.
-11. **Un solo servicio escribe movimientos de stock.** Ningún módulo inserta en esa tabla por su cuenta.
-12. **Auditar todo lo que se puede modificar**, en la misma transacción que el cambio.
+11. **Un solo servicio escribe movimientos de stock.** Ningún módulo inserta en esa tabla por su cuenta. Ese servicio (`registrarMovimientos`) recibe el `tx` de la transacción, nunca la abre: su tipo es `Prisma.TransactionClient`, así que escribir por fuera de una transacción no compila.
+12. **Una validación que lee el estado va DESPUÉS del candado**, y adentro de la misma transacción que la escritura. Si no, solo dice cómo estaban las cosas hace un rato. Y si se bloquean varias filas, **siempre en el mismo orden** (evita el abrazo mortal).
+13. **Nunca `Promise.all` adentro de una transacción.** Una transacción vive en una sola conexión y una conexión ejecuta una consulta a la vez. (Ojo: un `findMany` con varias relaciones en el `select` tampoco: Prisma las trae en paralelo.)
+14. **Auditar todo lo que se puede modificar**, en la misma transacción que el cambio. Los movimientos de stock NO se auditan (ya son inmutables y llevan usuario y fecha); sí se audita lo excepcional: forzar el stock en negativo.
 
 ---
 

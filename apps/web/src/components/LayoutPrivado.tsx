@@ -103,6 +103,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
           <ul className="mx-auto flex max-w-5xl gap-1 px-2">
             {[
               { a: '/', texto: 'Inicio' },
+              { a: '/stock', texto: 'Stock' },
               { a: '/insumos', texto: 'Insumos' },
               ...(veProveedores ? [{ a: '/proveedores', texto: 'Proveedores' }] : []),
             ].map((item) => (

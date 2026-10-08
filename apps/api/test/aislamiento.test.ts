@@ -1,8 +1,10 @@
 import type {
   EventoAuditoria,
   ListadoInsumos,
+  Motivo,
   ProveedorDetalle,
   ProveedorResumen,
+  StockPorSucursal,
   UnidadMedida,
   UsuarioResumen,
   UsuarioSesion,
@@ -311,6 +313,103 @@ describe('aislamiento entre empresas', () => {
     await entrarComo('dueno@vecina.test');
     const r = await api.get(`/api/insumos/${laferrere.harina000Id}/proveedores`);
     expect(r.status).toBe(404);
+  });
+
+  it('no se puede ver el stock de una sucursal de otra empresa', async () => {
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get(`/api/stock?sucursalId=${laferrere.sucursalCentralId}`);
+    // 403 y no 404: la sucursal no está entre las habilitadas de esta sesión,
+    // y es el middleware el que corta antes de llegar a la base.
+    expect(r.status).toBe(403);
+    expect((r.cuerpo as { codigo: string }).codigo).toBe('SUCURSAL_NO_PERMITIDA');
+  });
+
+  it('el stock propio no incluye ni un insumo de la otra empresa', async () => {
+    const vecina = await entrarComo('dueno@vecina.test');
+    const suSucursal = vecina.sucursales[0]?.id ?? '';
+    const r = await api.get(`/api/stock?sucursalId=${suSucursal}`);
+    expect(r.status).toBe(200);
+
+    const datos = r.cuerpo as StockPorSucursal;
+    expect(datos.items.map((i) => i.nombre).sort()).toEqual(['Azúcar', 'Harina 000']);
+    for (const id of laferrere.insumoIds) {
+      expect(JSON.stringify(datos)).not.toContain(id);
+    }
+  });
+
+  it('no se puede cargar un consumo con un insumo de otra empresa', async () => {
+    const vecina = await entrarComo('dueno@vecina.test');
+    const suSucursal = vecina.sucursales[0]?.id ?? '';
+
+    // El atacante conoce (o adivina) el UUID de un insumo ajeno.
+    const r = await api.post('/api/movimientos/consumo', {
+      sucursalId: suSucursal,
+      lineas: [{ insumoId: laferrere.harina000Id, cantidad: '1' }],
+    });
+
+    expect(r.status).toBe(400);
+    expect((r.cuerpo as { codigo: string }).codigo).toBe('DATOS_INVALIDOS');
+
+    // Y no quedó ningún movimiento apuntando al insumo ajeno.
+    const colados = await prisma.movimientoStock.count({
+      where: { insumoId: laferrere.harina000Id, empresaId: { not: laferrere.empresaId } },
+    });
+    expect(colados).toBe(0);
+  });
+
+  it('el historial de un insumo ajeno responde 404', async () => {
+    const vecina = await entrarComo('dueno@vecina.test');
+    const suSucursal = vecina.sucursales[0]?.id ?? '';
+    const r = await api.get(
+      `/api/insumos/${laferrere.harina000Id}/movimientos?sucursalId=${suSucursal}`,
+    );
+    expect(r.status).toBe(404);
+  });
+
+  it('no se puede anular un movimiento de otra empresa', async () => {
+    // Primero generamos un movimiento real en Laferrere.
+    await entrarComo('dueno@panaderia.test');
+    const carga = await api.post('/api/movimientos/consumo', {
+      sucursalId: laferrere.sucursalCentralId,
+      lineas: [{ insumoId: laferrere.harina000Id, cantidad: '1' }],
+      forzar: true,
+    });
+    expect(carga.status).toBe(201);
+    const movimientoId =
+      (carga.cuerpo as { movimientos: { id: string }[] }).movimientos[0]?.id ?? '';
+
+    api.olvidarCookies();
+    reiniciarLimitadores();
+    await entrarComo('dueno@vecina.test');
+
+    const r = await api.post(`/api/movimientos/${movimientoId}/reversa`, {});
+    expect(r.status).toBe(404);
+
+    // Y el movimiento sigue intacto, sin reversa.
+    const original = await prisma.movimientoStock.findUniqueOrThrow({
+      where: { id: movimientoId },
+      include: { revertidoPor: true },
+    });
+    expect(original.revertidoPor).toBeNull();
+  });
+
+  it('los motivos de movimiento son de cada empresa', async () => {
+    // Las dos tienen los mismos NOMBRES (los siembra el seed para todas), pero
+    // no los mismos ids: cada panadería podría agregar el motivo que quiera.
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get('/api/motivos');
+    expect(r.status).toBe(200);
+
+    const motivos = r.cuerpo as Motivo[];
+    expect(motivos).toHaveLength(9);
+
+    const propios = await prisma.motivoMovimiento.findMany({
+      where: { empresaId: laferrere.empresaId },
+      select: { id: true },
+    });
+    for (const { id } of propios) {
+      expect(motivos.map((m) => m.id)).not.toContain(id);
+    }
   });
 
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {

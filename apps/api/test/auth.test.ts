@@ -165,8 +165,22 @@ describe('GET /api/auth/me', () => {
     expect(usuario.rol).toBe('EMPLEADO');
     // El empleado solo opera en Laferrere.
     expect(usuario.sucursales.map((s) => s.codigo)).toEqual(['LAF']);
-    // Y no tiene ningún permiso de los que hay hoy.
-    expect(usuario.permisos).toEqual([]);
+    // La sesión trae sus permisos, para que el front no dibuje botones que van
+    // a dar 403. El empleado carga lo que PASÓ en su turno...
+    expect(usuario.permisos).toContain('consumo:crear');
+    expect(usuario.permisos).toContain('merma:crear');
+    // ...y nada de lo peligroso ni de lo administrativo.
+    for (const prohibido of [
+      'stock:forzar',
+      'movimiento:anular',
+      'stock:cargar-inicial',
+      'insumo:editar',
+      'proveedor:ver',
+      'usuario:ver',
+      'auditoria:ver',
+    ]) {
+      expect(usuario.permisos, prohibido).not.toContain(prohibido);
+    }
   });
 });
 

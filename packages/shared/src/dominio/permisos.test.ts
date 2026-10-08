@@ -14,6 +14,26 @@ describe('matriz de permisos', () => {
     expect(tienePermiso('ENCARGADO', 'usuario:crear')).toBe(false);
   });
 
+  it('el empleado carga consumo y mermas: es su trabajo', () => {
+    expect(tienePermiso('EMPLEADO', 'consumo:crear')).toBe(true);
+    expect(tienePermiso('EMPLEADO', 'merma:crear')).toBe(true);
+  });
+
+  it('los dos permisos PELIGROSOS son del dueño y del encargado', () => {
+    // Supuesto de la pregunta C-24 de PLAN.md. Anular un movimiento y dejar el
+    // stock en negativo son las dos cosas que pueden tapar un problema real.
+    for (const permiso of ['movimiento:anular', 'stock:forzar'] as const) {
+      expect(tienePermiso('DUENO', permiso), permiso).toBe(true);
+      expect(tienePermiso('ENCARGADO', permiso), permiso).toBe(true);
+      expect(tienePermiso('EMPLEADO', permiso), permiso).toBe(false);
+    }
+  });
+
+  it('el empleado no carga el saldo inicial: es el punto de partida del kardex', () => {
+    expect(tienePermiso('EMPLEADO', 'stock:cargar-inicial')).toBe(false);
+    expect(tienePermiso('ENCARGADO', 'stock:cargar-inicial')).toBe(true);
+  });
+
   it('el empleado no puede ver usuarios ni la auditoría', () => {
     expect(tienePermiso('EMPLEADO', 'usuario:ver')).toBe(false);
     expect(tienePermiso('EMPLEADO', 'auditoria:ver')).toBe(false);
@@ -39,12 +59,17 @@ describe('matriz de permisos', () => {
   });
 
   it('permisosDe devuelve la lista del rol', () => {
-    expect(permisosDe('EMPLEADO')).toEqual([]);
+    expect(permisosDe('EMPLEADO')).toEqual(['consumo:crear', 'merma:crear']);
     expect(permisosDe('ENCARGADO')).toEqual([
       'usuario:ver',
       'insumo:editar',
       'proveedor:ver',
       'proveedor:editar',
+      'stock:cargar-inicial',
+      'consumo:crear',
+      'merma:crear',
+      'movimiento:anular',
+      'stock:forzar',
     ]);
   });
 

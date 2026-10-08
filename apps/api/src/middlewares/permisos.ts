@@ -66,3 +66,29 @@ export function paramDeRuta(nombre: string): (req: Request) => string | undefine
     return typeof valor === 'string' ? valor : undefined;
   };
 }
+
+/**
+ * Lo mismo, pero leyendo del CUERPO del pedido (un POST de consumo manda la
+ * sucursal en el body) y del QUERY STRING (un GET la manda en la URL).
+ *
+ * OJO con la diferencia respecto del empresaId: la SUCURSAL sí puede venir del
+ * cliente, porque el usuario elige en qué sucursal trabaja. Lo que no se
+ * negocia es que el servidor verifique que esa sucursal esté entre las que
+ * tiene habilitadas, y eso es exactamente lo que hace requiereSucursal. El
+ * empresaId, en cambio, NUNCA viene del cliente: sale de la sesión.
+ */
+export function campoDeCuerpo(nombre: string): (req: Request) => string | undefined {
+  return (req) => {
+    const cuerpo: unknown = req.body;
+    if (typeof cuerpo !== 'object' || cuerpo === null) return undefined;
+    const valor = (cuerpo as Record<string, unknown>)[nombre];
+    return typeof valor === 'string' ? valor : undefined;
+  };
+}
+
+export function campoDeQuery(nombre: string): (req: Request) => string | undefined {
+  return (req) => {
+    const valor = req.query[nombre];
+    return typeof valor === 'string' ? valor : undefined;
+  };
+}

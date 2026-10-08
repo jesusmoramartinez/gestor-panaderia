@@ -56,6 +56,8 @@ model Empresa {
   categorias  CategoriaInsumo[]
   insumos     Insumo[]
   proveedores Proveedor[]
+  motivos     MotivoMovimiento[]
+  movimientos MovimientoStock[]
 
   @@map("empresa")
 }
@@ -84,6 +86,7 @@ model Sucursal {
   empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   usuarios        UsuarioSucursal[]
   insumoSucursals InsumoSucursal[]
+  movimientos     MovimientoStock[]
 
   // La unicidad SIEMPRE empieza por empresa_id: dos panaderías distintas
   // pueden tener una sucursal con el mismo código.
@@ -115,10 +118,11 @@ model Usuario {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa    Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  sucursales UsuarioSucursal[]
-  sesiones   Sesion[]
-  auditorias Auditoria[]
+  empresa     Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursales  UsuarioSucursal[]
+  sesiones    Sesion[]
+  auditorias  Auditoria[]
+  movimientos MovimientoStock[]
 
   @@index([empresaId])
   @@map("usuario")
@@ -161,6 +165,11 @@ enum AccionAuditoria {
   LOGIN
   LOGIN_FALLIDO
   LOGOUT
+  /// Alguien dejó el stock en negativo a propósito, usando su permiso
+  /// especial. Es una de las dos operaciones peligrosas del sistema (la otra
+  /// es anular), así que tiene su propia acción y se puede consultar:
+  /// "¿cuántas veces se forzó este mes, y quién?".
+  FORZAR_STOCK_NEGATIVO
 
   @@map("accion_auditoria")
 }
@@ -284,8 +293,9 @@ model UnidadMedida {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  insumos Insumo[]
+  empresa     Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  insumos     Insumo[]
+  movimientos MovimientoStock[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId])
@@ -347,6 +357,7 @@ model Insumo {
   presentaciones PresentacionInsumo[]
   porSucursal    InsumoSucursal[]
   proveedores    ProveedorInsumo[]
+  movimientos    MovimientoStock[]
 
   // Nombre único por empresa: dos filas "Harina 000" partirían el stock en dos
   // sin que nadie se dé cuenta.
@@ -524,4 +535,167 @@ model ProveedorInsumo {
   @@index([insumoId])
   @@index([presentacionId])
   @@map("proveedor_insumo")
+}
+
+/// A qué tipo de movimiento se le puede poner este motivo.
+enum TipoMotivo {
+  MERMA
+  AJUSTE
+  CONSUMO
+
+  @@map("tipo_motivo")
+}
+
+/// Por qué se perdió o se ajustó un insumo: "Vencido", "Plaga o humedad".
+///
+/// Por qué una tabla y no texto libre: si cada uno escribe "vencio",
+/// "Vencido" y "venció", nunca se puede responder "¿cuánta plata perdimos por
+/// vencimiento este mes?". El campo `notas` del movimiento queda para el
+/// detalle libre ("el estante de abajo del depósito B").
+model MotivoMovimiento {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId     String     @map("empresa_id") @db.Uuid
+  tipoAplicable TipoMotivo @map("tipo_aplicable")
+  nombre        String
+  activo        Boolean    @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa     Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  movimientos MovimientoStock[]
+
+  // El mismo nombre puede existir para dos tipos distintos ("Error de carga"
+  // sirve para una merma y para un ajuste), así que la unicidad incluye el tipo.
+  @@unique([empresaId, tipoAplicable, nombre])
+  @@index([empresaId, tipoAplicable])
+  @@map("motivo_movimiento")
+}
+
+/// Qué clase de hecho movió el stock.
+///
+/// En esta fase se usan SALDO_INICIAL, CONSUMO, MERMA y REVERSA. Los otros
+/// cuatro ya están declarados porque el CHECK de signo los nombra y porque el
+/// tipo es parte del contrato: agregar un valor a un enum de Postgres más
+/// adelante es una migración, y el historial viejo no cambia.
+enum TipoMovimiento {
+  SALDO_INICIAL
+  COMPRA
+  CONSUMO
+  MERMA
+  AJUSTE
+  TRANSFERENCIA_SALIDA
+  TRANSFERENCIA_ENTRADA
+  REVERSA
+
+  @@map("tipo_movimiento")
+}
+
+/// LA TABLA MÁS IMPORTANTE DEL PROYECTO.
+///
+/// No se guarda "cuánto hay": se guardan todos los HECHOS que afectan el
+/// stock, y el saldo es su suma. Eso es el patrón kardex, y es exactamente
+/// cómo funciona un extracto bancario. La nota completa, con el contraste
+/// contra una columna `stock_actual`, está en
+/// docs/aprendizaje/03-kardex-stock-calculado.md
+///
+/// DOS REGLAS QUE NUNCA SE ROMPEN:
+///
+/// 1. Una fila de esta tabla NO se edita ni se borra. Nunca. Para corregir un
+///    error se escribe un movimiento inverso (`REVERSA`). Fijate que este
+///    modelo no tiene `updatedAt`, al contrario de todos los demás: no hay
+///    nada que actualizar, y su ausencia lo deja dicho en el esquema.
+/// 2. Un ÚNICO servicio inserta acá (`registrarMovimientos`). Si hubiera dos,
+///    tarde o temprano uno se olvida de una validación, y te enterás por un
+///    stock que no cuadra tres semanas después.
+model MovimientoStock {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId  String @map("empresa_id") @db.Uuid
+  /// Dónde pasó. El stock es de una sucursal, nunca de la empresa.
+  sucursalId String @map("sucursal_id") @db.Uuid
+  insumoId   String @map("insumo_id") @db.Uuid
+
+  tipo TipoMovimiento
+
+  /// CON SIGNO: positivo entra, negativo sale. Siempre en la unidad base del
+  /// insumo.
+  ///
+  /// Una sola columna con signo (en vez de una cantidad positiva más un campo
+  /// "sentido") hace que el saldo sea `SUM(cantidad_base)` y nada más. Con la
+  /// otra forma, cada consulta necesitaría un CASE por tipo, y el día que se
+  /// agrega un tipo nuevo hay que acordarse de tocar todas: el error sería
+  /// silencioso.
+  cantidadBase Decimal @map("cantidad_base") @db.Decimal(18, 6)
+
+  /// Lo que la persona TIPEÓ, sin signo, y en qué unidad lo tipeó.
+  cantidadIngresada Decimal @map("cantidad_ingresada") @db.Decimal(18, 6)
+  unidadIngresadaId String  @map("unidad_ingresada_id") @db.Uuid
+  /// SNAPSHOT del factor usado para convertir. Es una copia a propósito: si
+  /// mañana alguien corrige el factor de la unidad, este movimiento tiene que
+  /// seguir diciendo la verdad de lo que pasó ese día.
+  ///
+  /// Con estos tres campos el historial puede mostrar "cargó 2000 g = 2 kg" y
+  /// va a seguir siendo cierto en cinco años.
+  factorConversion  Decimal @map("factor_conversion") @db.Decimal(20, 10)
+
+  /// Costo por unidad base en el momento del movimiento. Queda NULL en esta
+  /// fase: lo llena el costo promedio ponderado, que llega con las compras
+  /// (Fase 8).
+  costoUnitario Decimal? @map("costo_unitario") @db.Decimal(18, 4)
+
+  /// CUÁNDO OCURRIÓ en la realidad. Es distinto de created_at (cuándo se
+  /// registró): una merma del sábado se puede cargar el lunes, y para los
+  /// informes vale el sábado.
+  fecha     DateTime @db.Timestamptz(6)
+  usuarioId String   @map("usuario_id") @db.Uuid
+
+  /// Obligatorio para MERMA y AJUSTE: es una regla del servicio, porque la
+  /// base no puede saber qué tipos la necesitan sin repetir la lista.
+  motivoId String? @map("motivo_id") @db.Uuid
+  notas    String?
+
+  /// Agrupa los movimientos escritos en la MISMA operación: una carga de
+  /// consumo con 6 insumos deja 6 filas con el mismo operacion_id. No es
+  /// clave foránea (no hay tabla "operación"): es una etiqueta de agrupación,
+  /// y es lo que permite anular una carga completa o mostrarla junta.
+  operacionId String @map("operacion_id") @db.Uuid
+
+  /// Si este movimiento anula a otro. UNIQUE: un movimiento se puede revertir
+  /// UNA sola vez, y eso lo garantiza la base, no la buena memoria del código.
+  revierteAId String? @unique @map("revierte_a_id") @db.Uuid
+
+  /// true si se dejó el stock en negativo a propósito, con permiso especial.
+  forzado Boolean @default(false)
+
+  /// Cuándo se REGISTRÓ. No hay updatedAt: esta fila no se actualiza.
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursal        Sucursal          @relation(fields: [sucursalId], references: [id], onDelete: Restrict)
+  insumo          Insumo            @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  unidadIngresada UnidadMedida      @relation(fields: [unidadIngresadaId], references: [id], onDelete: Restrict)
+  usuario         Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  motivo          MotivoMovimiento? @relation(fields: [motivoId], references: [id], onDelete: Restrict)
+
+  // Relación de la tabla CONSIGO MISMA: una reversa apunta al movimiento que
+  // anula. Como revierteAId es @unique, Prisma la trata como uno-a-uno, y por
+  // eso del otro lado hay un solo `revertidoPor` y no una lista.
+  revierteA    MovimientoStock? @relation("Reversa", fields: [revierteAId], references: [id], onDelete: Restrict)
+  revertidoPor MovimientoStock? @relation("Reversa")
+
+  // onDelete: Restrict en TODAS las claves foráneas. Un movimiento es un
+  // hecho histórico: la base tiene que impedir que borrar un insumo, un
+  // usuario o una sucursal se lleve el historial puesto.
+
+  // El índice que usa la consulta de saldo y la de historial. El orden de las
+  // columnas importa: Postgres puede usar un índice si la consulta filtra por
+  // un PREFIJO de sus columnas, así que este también sirve para
+  // (empresa, sucursal) y para (empresa, sucursal, insumo).
+  @@index([empresaId, sucursalId, insumoId, fecha])
+  // Para la valuación y el recálculo del costo promedio (Fase 8): el mismo
+  // insumo en TODAS las sucursales.
+  @@index([empresaId, insumoId, fecha])
+  // Para traer o anular una operación completa.
+  @@index([operacionId])
+  @@map("movimiento_stock")
 }

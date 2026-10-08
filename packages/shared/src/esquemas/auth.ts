@@ -90,6 +90,14 @@ export const UsuarioResumenSchema = z.object({
 });
 export type UsuarioResumen = z.infer<typeof UsuarioResumenSchema>;
 
+/**
+ * Tiene que coincidir con el enum `AccionAuditoria` del schema de Prisma.
+ *
+ * Están declarados dos veces porque viven en mundos distintos (uno genera SQL,
+ * el otro valida JSON), y eso significa que se pueden desincronizar. Pasó: al
+ * agregar FORZAR_STOCK_NEGATIVO en la Fase 6 me olvidé de este archivo, y lo
+ * encontró `pnpm typecheck` antes de que llegara a ningún lado.
+ */
 export const AccionAuditoriaSchema = z.enum([
   'CREAR',
   'ACTUALIZAR',
@@ -98,6 +106,7 @@ export const AccionAuditoriaSchema = z.enum([
   'LOGIN',
   'LOGIN_FALLIDO',
   'LOGOUT',
+  'FORZAR_STOCK_NEGATIVO',
 ]);
 export type AccionAuditoria = z.infer<typeof AccionAuditoriaSchema>;
 

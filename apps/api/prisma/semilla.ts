@@ -43,6 +43,27 @@ export const UNIDADES = [
   { codigo: 'u', nombre: 'Unidad', dimension: 'UNIDAD', factorABase: '1', esBase: true },
 ] as const;
 
+/**
+ * Los motivos de movimiento. Como las unidades, son iguales para cualquier
+ * panadería, así que se cargan para todas las empresas.
+ *
+ * `tipoAplicable` dice a qué clase de movimiento se le puede poner cada uno:
+ * "Diferencia de conteo" no tiene sentido en una merma, y "Vencido" no tiene
+ * sentido en un ajuste. Que el motivo sea una tabla y no texto libre es lo que
+ * permite responder "¿cuánta plata perdimos por vencimiento este mes?".
+ */
+export const MOTIVOS = [
+  { tipoAplicable: 'MERMA', nombre: 'Vencido' },
+  { tipoAplicable: 'MERMA', nombre: 'Roto / derramado' },
+  { tipoAplicable: 'MERMA', nombre: 'Plaga o humedad' },
+  { tipoAplicable: 'MERMA', nombre: 'Error de carga' },
+  { tipoAplicable: 'AJUSTE', nombre: 'Diferencia de conteo' },
+  { tipoAplicable: 'AJUSTE', nombre: 'Diferencia en transferencia' },
+  { tipoAplicable: 'AJUSTE', nombre: 'Error de carga' },
+  { tipoAplicable: 'CONSUMO', nombre: 'Producción del turno' },
+  { tipoAplicable: 'CONSUMO', nombre: 'Prueba / degustación' },
+] as const;
+
 export type DefinicionSucursal = {
   codigo: string;
   nombre: string;
@@ -173,6 +194,20 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
           costoIncluyeIva: definicionEmpresa.costoIncluyeIva,
         },
       });
+
+      for (const motivo of MOTIVOS) {
+        await tx.motivoMovimiento.upsert({
+          where: {
+            empresaId_tipoAplicable_nombre: {
+              empresaId: empresa.id,
+              tipoAplicable: motivo.tipoAplicable,
+              nombre: motivo.nombre,
+            },
+          },
+          create: { ...motivo, empresaId: empresa.id },
+          update: { activo: true },
+        });
+      }
 
       for (const unidad of UNIDADES) {
         await tx.unidadMedida.upsert({
