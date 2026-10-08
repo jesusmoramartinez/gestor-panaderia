@@ -21,6 +21,18 @@ export const PERMISOS = [
   'auditoria:ver',
   /** Crear, editar y desactivar insumos, categorías, presentaciones y mínimos. */
   'insumo:editar',
+  /**
+   * VER proveedores y qué insumo provee cada uno.
+   *
+   * Este sí lleva permiso, al contrario de los otros catálogos, y la razón es
+   * el PRECIO: la relación proveedor–insumo incluye el último precio de compra,
+   * y el supuesto de la pregunta C-23 de PLAN.md es que el empleado ve
+   * cantidades, no precios. Esconderlo en la pantalla no alcanzaría: el dato no
+   * tiene que salir del servidor.
+   */
+  'proveedor:ver',
+  /** Crear, editar y desactivar proveedores y sus asociaciones con insumos. */
+  'proveedor:editar',
 ] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
@@ -34,9 +46,11 @@ export type Permiso = (typeof PERMISOS)[number];
 export const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
   DUENO: PERMISOS,
   // El encargado administra el catálogo: es quien se da cuenta de que falta
-  // dar de alta un insumo. VER el catálogo no lleva permiso (lo necesita
-  // cualquiera que cargue stock), solo modificarlo.
-  ENCARGADO: ['usuario:ver', 'insumo:editar'],
+  // dar de alta un insumo. VER los catálogos no lleva permiso (lo necesita
+  // cualquiera que cargue stock), solo modificarlos. La excepción es el de
+  // proveedores: es quien llama al molino cuando falta harina, y para eso
+  // necesita ver y corregir precios y códigos de artículo.
+  ENCARGADO: ['usuario:ver', 'insumo:editar', 'proveedor:ver', 'proveedor:editar'],
   EMPLEADO: [],
 };
 

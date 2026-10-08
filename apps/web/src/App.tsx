@@ -6,6 +6,9 @@ import { InsumoDetalle } from './routes/InsumoDetalle';
 import { InsumoNuevo } from './routes/InsumoNuevo';
 import { Insumos } from './routes/Insumos';
 import { Login } from './routes/Login';
+import { ProveedorDetalle } from './routes/ProveedorDetalle';
+import { ProveedorNuevo } from './routes/ProveedorNuevo';
+import { Proveedores } from './routes/Proveedores';
 
 /**
  * El mapa de pantallas de la aplicación.
@@ -26,6 +29,11 @@ export function App() {
             /insumos/:id, porque si no "nuevo" se tomaría como un id. */}
         <Route path="/insumos/nuevo" element={<InsumoNuevo />} />
         <Route path="/insumos/:id" element={<InsumoDetalle />} />
+
+        <Route path="/proveedores" element={<Proveedores />} />
+        {/* Igual que con los insumos: "nuevo" antes que ":id". */}
+        <Route path="/proveedores/nuevo" element={<ProveedorNuevo />} />
+        <Route path="/proveedores/:id" element={<ProveedorDetalle />} />
       </Route>
 
       {/* Cualquier URL que no exista vuelve al inicio. */}

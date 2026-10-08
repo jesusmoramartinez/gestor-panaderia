@@ -2,6 +2,7 @@ import { formatearFechaArgentina, type UsuarioSesion } from '@panaderia/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 
+import { usePuede } from '../hooks/useSesion';
 import { cerrarSesion } from '../lib/sesion';
 import { ProveedorSucursalActiva, useSucursalActiva } from './SucursalActiva';
 
@@ -56,6 +57,10 @@ function SelectorSucursal() {
 export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
   const navegar = useNavigate();
   const queryClient = useQueryClient();
+  // El empleado no ve proveedores (ahí hay precios), así que tampoco tiene
+  // sentido mostrarle la pestaña: haría clic y se comería un 403. Esto es
+  // comodidad, no seguridad: la defensa real está en la API.
+  const veProveedores = usePuede('proveedor:ver');
 
   const salir = useMutation({
     mutationFn: cerrarSesion,
@@ -99,6 +104,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
             {[
               { a: '/', texto: 'Inicio' },
               { a: '/insumos', texto: 'Insumos' },
+              ...(veProveedores ? [{ a: '/proveedores', texto: 'Proveedores' }] : []),
             ].map((item) => (
               <li key={item.a}>
                 {/* NavLink sabe si su ruta es la activa y nos pasa isActive. */}

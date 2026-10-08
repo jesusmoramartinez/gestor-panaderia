@@ -1,6 +1,8 @@
 import type {
   EventoAuditoria,
   ListadoInsumos,
+  ProveedorDetalle,
+  ProveedorResumen,
   UnidadMedida,
   UsuarioResumen,
   UsuarioSesion,
@@ -34,6 +36,8 @@ let laferrere: {
   unidadIds: string[];
   insumoIds: string[];
   harina000Id: string;
+  proveedorIds: string[];
+  molinoId: string;
 };
 
 beforeAll(async () => {
@@ -43,7 +47,13 @@ beforeAll(async () => {
   // usuario de la otra empresa NO tiene que poder ver ni usar.
   const empresa = await prisma.empresa.findFirstOrThrow({
     where: { nombre: 'Panadería Laferrere' },
-    include: { sucursales: true, usuarios: true, unidades: true, insumos: true },
+    include: {
+      sucursales: true,
+      usuarios: true,
+      unidades: true,
+      insumos: true,
+      proveedores: true,
+    },
   });
   const central = empresa.sucursales.find((s) => s.codigo === 'CEN');
   if (!central) throw new Error('falta la sucursal CEN en la semilla');
@@ -55,6 +65,12 @@ beforeAll(async () => {
     unidadIds: empresa.unidades.map((u) => u.id),
     insumoIds: empresa.insumos.map((i) => i.id),
     harina000Id: empresa.insumos.find((i) => i.nombre === 'Harina 000')?.id ?? '',
+    proveedorIds: empresa.proveedores.map((p) => p.id),
+    // Ojo: la OTRA empresa tiene un proveedor con el mismo nombre y el mismo
+    // CUIT. Es el caso realista (dos panaderías le compran al mismo molino) y
+    // el que demuestra que lo que separa los datos es el empresa_id, no el
+    // nombre.
+    molinoId: empresa.proveedores.find((p) => p.nombre === 'Molino San Jorge')?.id ?? '',
   };
 });
 
@@ -229,6 +245,72 @@ describe('aislamiento entre empresas', () => {
     // Aunque el pedido no dijo nada de la empresa, quedó en la correcta:
     // porque el empresaId sale de la SESIÓN y no del cuerpo del pedido.
     expect(creado.empresaId).not.toBe(laferrere.empresaId);
+  });
+
+  it('el listado de proveedores no cruza empresas, aunque se llamen igual', async () => {
+    // Las dos empresas tienen un "Molino San Jorge" con el MISMO CUIT. Si el
+    // filtro por empresa_id se olvidara en algún lado, acá se vería.
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get('/api/proveedores');
+    expect(r.status).toBe(200);
+
+    const proveedores = r.cuerpo as ProveedorResumen[];
+    expect(proveedores.map((p) => p.nombre)).toEqual(['Molino San Jorge']);
+    expect(proveedores[0]?.id).not.toBe(laferrere.molinoId);
+    // Su molino tarda 3 días; el de la otra empresa, 2. Son fichas distintas.
+    expect(proveedores[0]?.diasEntrega).toBe(3);
+
+    for (const id of laferrere.proveedorIds) {
+      expect(JSON.stringify(proveedores)).not.toContain(id);
+    }
+  });
+
+  it('la ficha de un proveedor ajeno responde 404, y no se puede editar', async () => {
+    await entrarComo('dueno@vecina.test');
+    expect((await api.get(`/api/proveedores/${laferrere.molinoId}`)).status).toBe(404);
+
+    const editar = await api.pedir('PATCH', `/api/proveedores/${laferrere.molinoId}`, {
+      nombre: 'Secuestrado',
+    });
+    expect(editar.status).toBe(404);
+
+    const baja = await api.post(`/api/proveedores/${laferrere.molinoId}/desactivar`);
+    expect(baja.status).toBe(404);
+
+    // Y sigue intacto.
+    const molino = await prisma.proveedor.findUniqueOrThrow({ where: { id: laferrere.molinoId } });
+    expect(molino.nombre).toBe('Molino San Jorge');
+    expect(molino.activo).toBe(true);
+  });
+
+  it('no se puede asociar un insumo de otra empresa a un proveedor propio', async () => {
+    await entrarComo('dueno@vecina.test');
+
+    // Primero un proveedor propio, legítimo.
+    const alta = await api.post('/api/proveedores', { nombre: 'Proveedor del vecino' });
+    expect(alta.status).toBe(201);
+    const propio = alta.cuerpo as ProveedorDetalle;
+
+    // Ahora el ataque: el atacante conoce (o adivina) el UUID de un insumo
+    // ajeno y lo manda en el cuerpo del pedido.
+    const r = await api.post(`/api/proveedores/${propio.id}/insumos`, {
+      insumoId: laferrere.harina000Id,
+    });
+
+    expect(r.status).toBe(400);
+    expect((r.cuerpo as { codigo: string }).codigo).toBe('DATOS_INVALIDOS');
+
+    // Y no quedó nada escrito apuntando al insumo ajeno.
+    const colado = await prisma.proveedorInsumo.count({
+      where: { insumoId: laferrere.harina000Id, proveedorId: propio.id },
+    });
+    expect(colado).toBe(0);
+  });
+
+  it('ver los proveedores de un insumo ajeno responde 404', async () => {
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get(`/api/insumos/${laferrere.harina000Id}/proveedores`);
+    expect(r.status).toBe(404);
   });
 
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {

@@ -26,7 +26,7 @@ async function resumen(): Promise<void> {
   const empresas = await prisma.empresa.findMany({
     orderBy: { nombre: 'asc' },
     include: {
-      _count: { select: { categorias: true, insumos: true, unidades: true } },
+      _count: { select: { categorias: true, insumos: true, unidades: true, proveedores: true } },
       sucursales: { orderBy: { codigo: 'asc' } },
       usuarios: {
         orderBy: { email: 'asc' },
@@ -44,7 +44,8 @@ async function resumen(): Promise<void> {
     console.log(
       `         ${String(empresa._count.categorias).padStart(3)} categorías · ` +
         `${String(empresa._count.insumos).padStart(3)} insumos · ` +
-        `${String(empresa._count.unidades).padStart(3)} unidades`,
+        `${String(empresa._count.unidades).padStart(3)} unidades · ` +
+        `${String(empresa._count.proveedores).padStart(3)} proveedores`,
     );
     for (const usuario of empresa.usuarios) {
       const donde =

@@ -49,12 +49,13 @@ model Empresa {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  sucursales Sucursal[]
-  usuarios   Usuario[]
-  auditorias Auditoria[]
-  unidades   UnidadMedida[]
-  categorias CategoriaInsumo[]
-  insumos    Insumo[]
+  sucursales  Sucursal[]
+  usuarios    Usuario[]
+  auditorias  Auditoria[]
+  unidades    UnidadMedida[]
+  categorias  CategoriaInsumo[]
+  insumos     Insumo[]
+  proveedores Proveedor[]
 
   @@map("empresa")
 }
@@ -345,6 +346,7 @@ model Insumo {
   unidadBase     UnidadMedida         @relation(fields: [unidadBaseId], references: [id], onDelete: Restrict)
   presentaciones PresentacionInsumo[]
   porSucursal    InsumoSucursal[]
+  proveedores    ProveedorInsumo[]
 
   // Nombre único por empresa: dos filas "Harina 000" partirían el stock en dos
   // sin que nadie se dé cuenta.
@@ -381,7 +383,8 @@ model PresentacionInsumo {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  insumo Insumo @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  insumo      Insumo            @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  proveedores ProveedorInsumo[]
 
   @@unique([insumoId, nombre])
   @@index([insumoId])
@@ -420,4 +423,105 @@ model InsumoSucursal {
   @@id([insumoId, sucursalId])
   @@index([empresaId, sucursalId])
   @@map("insumo_sucursal")
+}
+
+/// A quién le compramos. Es un catálogo: se da de alta, se corrige y se
+/// desactiva, nunca se borra.
+///
+/// Todavía NO tiene cuenta corriente ni pagos (fuera de alcance). Lo que sí
+/// tiene es `diasEntrega`, porque es lo que convierte una alerta de stock bajo
+/// en una sugerencia útil: "pedí hoy, que tarda 3 días".
+model Proveedor {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId      String  @map("empresa_id") @db.Uuid
+  nombre         String
+  /// El nombre legal, que casi nunca es el que usa la gente: se le dice
+  /// "Molino Cañuelas" y la factura dice "Compañía Argentina de Granos S.A.".
+  razonSocial    String? @map("razon_social")
+  cuit           String?
+  email          String?
+  telefono       String?
+  direccion      String?
+  contactoNombre String? @map("contacto_nombre")
+
+  /// Cuántos días tarda en entregar desde que se le pide. Entero y nullable:
+  /// si no se sabe, es null, que NO es lo mismo que cero (entrega en el día).
+  diasEntrega Int?    @map("dias_entrega")
+  notas       String?
+  activo      Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  insumos ProveedorInsumo[]
+
+  @@unique([empresaId, nombre])
+  @@index([empresaId, activo])
+  @@map("proveedor")
+}
+
+/// Qué insumo provee cada proveedor: la tabla PUENTE de una relación
+/// muchos-a-muchos CON ATRIBUTOS PROPIOS.
+///
+/// Un proveedor vende muchos insumos y un insumo se le compra a varios
+/// proveedores. Eso solo ya pediría una tabla intermedia. Pero acá hay algo
+/// más: el precio, el código del artículo en el catálogo del proveedor y en
+/// qué presentación lo vende NO pertenecen ni al proveedor ni al insumo por
+/// separado — pertenecen al PAR. Esa es la señal de que la relación necesita
+/// su propia tabla con sus propias columnas (y no las "relaciones implícitas"
+/// de Prisma, que solo guardan los dos ids).
+model ProveedorInsumo {
+  id          String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Igual que en presentacion_insumo: la columna va, la clave foránea no.
+  /// El empresa_id acá es un dato DERIVADO (sale del proveedor y del insumo,
+  /// que ya la tienen) y está para poder filtrar e indexar por empresa sin
+  /// hacer dos joins. El servicio es el que garantiza que coincida.
+  empresaId   String @map("empresa_id") @db.Uuid
+  proveedorId String @map("proveedor_id") @db.Uuid
+  insumoId    String @map("insumo_id") @db.Uuid
+
+  /// En qué presentación lo vende. Null = lo vende en la unidad base.
+  ///
+  /// La base NO puede garantizar que esta presentación sea del mismo insumo
+  /// que `insumoId`: una clave foránea simple solo verifica que el id exista
+  /// en presentacion_insumo, no de quién es. Por eso es una regla del
+  /// SERVICIO, con su test.
+  presentacionId String? @map("presentacion_id") @db.Uuid
+
+  /// El código del artículo en SU catálogo, para pedirle sin confusión
+  /// ("mandame 10 del 4412").
+  codigoProveedor String? @map("codigo_proveedor")
+
+  /// Precio de la presentación (o de la unidad base si no hay presentación) en
+  /// la última compra. Lo va a actualizar solo la recepción de compras
+  /// (Fase 8); hoy se puede cargar a mano para arrancar.
+  ultimoPrecio   Decimal?  @map("ultimo_precio") @db.Decimal(18, 4)
+  /// Con inflación, un precio sin fecha no sirve para nada. Los dos van juntos
+  /// o no van: lo garantiza un CHECK en la migración.
+  ultimoPrecioAt DateTime? @map("ultimo_precio_at") @db.Timestamptz(6)
+
+  /// A quién se le compra este insumo por defecto. Define bajo qué proveedor
+  /// se agrupa en la vista de reposición (Fase 10). Hay UNO solo por insumo:
+  /// lo garantiza un índice único parcial en la migración.
+  esPreferido Boolean @default(false) @map("es_preferido")
+  activo      Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  proveedor    Proveedor           @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  insumo       Insumo              @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  /// SetNull y no Cascade: si alguna vez se borrara una presentación, la
+  /// relación con el proveedor (y su precio) tiene que sobrevivir. Queda en
+  /// null, que ya significa algo válido: "lo vende en la unidad base".
+  presentacion PresentacionInsumo? @relation(fields: [presentacionId], references: [id], onDelete: SetNull)
+
+  // Un proveedor no puede figurar dos veces para el mismo insumo: si no,
+  // habría dos precios "últimos" y ninguno sería el último.
+  @@unique([proveedorId, insumoId])
+  @@index([empresaId])
+  @@index([insumoId])
+  @@index([presentacionId])
+  @@map("proveedor_insumo")
 }

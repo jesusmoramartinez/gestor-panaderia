@@ -7,6 +7,7 @@ import {
   ESCALA_CANTIDAD,
   ESCALA_DINERO,
   formatearCantidad,
+  formatearDinero,
   normalizarNumero,
   redondearCantidad,
   redondearDinero,
@@ -133,5 +134,23 @@ describe('esDecimalValido', () => {
     for (const invalido of ['', '  ', 'abc', '2,5,5', '1..2', '2 kg']) {
       expect(esDecimalValido(invalido), JSON.stringify(invalido)).toBe(false);
     }
+  });
+});
+
+describe('formatearDinero', () => {
+  it('muestra el importe con separadores argentinos y dos decimales', () => {
+    // El punto separa los miles y la coma los decimales, como se lee acá.
+    expect(formatearDinero('18500')).toBe('$\u00a018.500,00');
+    expect(formatearDinero('18750.5')).toBe('$\u00a018.750,50');
+  });
+
+  it('redondea a dos decimales aunque el dato tenga cuatro', () => {
+    // El dinero se guarda con 4 decimales y se muestra con 2.
+    expect(formatearDinero('1234.5678')).toBe('$\u00a01.234,57');
+  });
+
+  it('no pierde precisión con importes grandes', () => {
+    // Si pasáramos por number, este número se deformaría.
+    expect(formatearDinero('123456789012345.67')).toBe('$\u00a0123.456.789.012.345,67');
   });
 });

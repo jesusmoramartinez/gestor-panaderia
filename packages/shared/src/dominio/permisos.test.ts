@@ -40,7 +40,12 @@ describe('matriz de permisos', () => {
 
   it('permisosDe devuelve la lista del rol', () => {
     expect(permisosDe('EMPLEADO')).toEqual([]);
-    expect(permisosDe('ENCARGADO')).toEqual(['usuario:ver', 'insumo:editar']);
+    expect(permisosDe('ENCARGADO')).toEqual([
+      'usuario:ver',
+      'insumo:editar',
+      'proveedor:ver',
+      'proveedor:editar',
+    ]);
   });
 
   it('el encargado puede administrar el catálogo de insumos', () => {
@@ -52,5 +57,22 @@ describe('matriz de permisos', () => {
     // Ver el catálogo no lleva permiso: cualquiera que cargue un consumo
     // necesita elegir el insumo. Modificarlo sí.
     expect(tienePermiso('EMPLEADO', 'insumo:editar')).toBe(false);
+  });
+
+  it('el empleado NO ve proveedores, porque ahí hay precios', () => {
+    // Es la diferencia con los demás catálogos: la relación proveedor-insumo
+    // lleva el último precio de compra. Supuesto de la pregunta C-23 de
+    // PLAN.md: el empleado ve cantidades, no precios.
+    expect(tienePermiso('EMPLEADO', 'proveedor:ver')).toBe(false);
+    expect(tienePermiso('EMPLEADO', 'proveedor:editar')).toBe(false);
+  });
+
+  it('quien puede editar proveedores también puede verlos', () => {
+    // Un rol que pudiera editar sin ver no tendría forma de usar la pantalla.
+    for (const rol of ['DUENO', 'ENCARGADO', 'EMPLEADO'] as const) {
+      if (tienePermiso(rol, 'proveedor:editar')) {
+        expect(tienePermiso(rol, 'proveedor:ver')).toBe(true);
+      }
+    }
   });
 });

@@ -111,6 +111,26 @@ export function formatearCantidad(valor: Numerico, decimalesMaximos = ESCALA_CAN
  * No valida: si el texto no es un número, lo devuelve tal cual y que falle la
  * validación de quien corresponde (así el mensaje de error es el adecuado).
  */
+/**
+ * Formatea un importe para mostrarlo: 18500 → "$ 18.500,00".
+ *
+ * El dinero se GUARDA con 4 decimales (ESCALA_DINERO) porque un precio
+ * unitario puede necesitarlos, pero se MUESTRA con 2: nadie lee centésimas de
+ * centavo. Son dos cosas distintas y conviene no confundirlas.
+ *
+ * Mismo cuidado que formatearCantidad: a Intl le pasamos el TEXTO que devuelve
+ * toFixed(), nunca un number.
+ */
+export function formatearDinero(valor: Numerico, decimales = 2): string {
+  const texto = aDecimal(valor).toFixed(decimales);
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
+  }).format(texto as Intl.StringNumericLiteral);
+}
+
 export function normalizarNumero(texto: string): string {
   const limpio = texto.trim();
   if (!limpio.includes(',')) return limpio;

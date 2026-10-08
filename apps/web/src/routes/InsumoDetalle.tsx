@@ -3,6 +3,8 @@ import {
   ActualizarInsumoSchema,
   CrearPresentacionSchema,
   formatearCantidad,
+  formatearDinero,
+  formatearFechaArgentina,
   type InsumoDetalle as Insumo,
   type ParametrosPorSucursal,
   ParametrosSucursalSchema,
@@ -35,6 +37,7 @@ import {
   obtenerInsumo,
 } from '../lib/catalogo';
 import { aplicarErroresDelServidor } from '../lib/erroresFormulario';
+import { actualizarAsociacion, listarProveedoresDeInsumo } from '../lib/proveedores';
 
 /**
  * Hook propio para no repetir en cada panel lo mismo: cuando una mutación
@@ -128,6 +131,7 @@ export function InsumoDetalle() {
 
       <DatosBasicos insumo={insumo} puedeEditar={puedeEditar} />
       <Presentaciones insumo={insumo} puedeEditar={puedeEditar} />
+      <ProveedoresDelInsumo insumoId={insumo.id} unidad={insumo.unidadBase.codigo} />
       <MinimosPorSucursal insumo={insumo} puedeEditar={puedeEditar} />
 
       <DialogoConfirmacion
@@ -576,5 +580,134 @@ function FormularioParametros({
         </div>
       )}
     </form>
+  );
+}
+
+// ===========================================================================
+// LA VISTA ESPEJO.
+//
+// Es la misma tabla puente que se ve en la ficha del proveedor, leída desde la
+// otra punta. Las dos existen a propósito: el encargado que está mirando la
+// harina quiere saber a quién se la compra, y el que está mirando al molino
+// quiere saber qué le compra. Con una sola pantalla, siempre falta la otra.
+// ===========================================================================
+
+function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: string }) {
+  const queryClient = useQueryClient();
+  // El permiso de VER es propio de proveedores: estas filas llevan precios.
+  const puedeVer = usePuede('proveedor:ver');
+  const puedeEditar = usePuede('proveedor:editar');
+
+  const consulta = useQuery({
+    queryKey: ['proveedoresDeInsumo', insumoId],
+    queryFn: () => listarProveedoresDeInsumo(insumoId),
+    enabled: puedeVer,
+  });
+
+  const marcarPreferido = useMutation({
+    mutationFn: ({ proveedorId, asociacionId }: { proveedorId: string; asociacionId: string }) =>
+      actualizarAsociacion(proveedorId, asociacionId, { esPreferido: true }),
+    onSuccess: async () => {
+      // Cambió la fila puente: se invalidan las dos vistas que la muestran.
+      await queryClient.invalidateQueries({ queryKey: ['proveedoresDeInsumo'] });
+      await queryClient.invalidateQueries({ queryKey: ['proveedor'] });
+    },
+  });
+
+  // Sin permiso no se pide el dato ni se dibuja la tarjeta: esconder el panel
+  // no sería suficiente, pero no pedirlo sí lo es (la API igual lo rechaza).
+  if (!puedeVer) return null;
+
+  const filas = consulta.data ?? [];
+
+  return (
+    <Tarjeta titulo="Quién me lo provee">
+      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        El <strong>preferido</strong> es el que se va a sugerir cuando este insumo aparezca en la
+        lista de reposición.
+      </p>
+
+      {consulta.isPending && <p className="text-sm text-slate-500">Cargando proveedores...</p>}
+      {consulta.isError && <MensajeError>{consulta.error.message}</MensajeError>}
+
+      {consulta.isSuccess && filas.length === 0 && (
+        <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
+          Todavía no hay ningún proveedor cargado para este insumo. Se agrega desde la ficha del
+          proveedor.
+        </p>
+      )}
+
+      {filas.length > 0 && (
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+          {filas.map((fila) => (
+            <li key={fila.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 py-2">
+              <Link
+                to={`/proveedores/${fila.proveedor.id}`}
+                className={
+                  fila.activo
+                    ? 'font-medium hover:underline'
+                    : 'text-slate-400 line-through hover:underline'
+                }
+              >
+                {fila.proveedor.nombre}
+              </Link>
+
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                {fila.presentacion === null
+                  ? `por ${unidad}`
+                  : `${fila.presentacion.nombre} (${formatearCantidad(fila.presentacion.cantidadBase)} ${unidad})`}
+              </span>
+
+              <span className="text-xs text-slate-400">
+                {fila.proveedor.diasEntrega === null
+                  ? 'entrega: sin dato'
+                  : fila.proveedor.diasEntrega === 0
+                    ? 'entrega en el día'
+                    : `entrega en ${String(fila.proveedor.diasEntrega)} d`}
+              </span>
+
+              {fila.esPreferido && (
+                <span className="rounded-full bg-corteza/15 px-2 py-0.5 text-xs font-semibold text-corteza">
+                  preferido
+                </span>
+              )}
+
+              <span className="ml-auto text-right">
+                {fila.ultimoPrecio === null ? (
+                  <span className="text-sm text-slate-400">sin precio</span>
+                ) : (
+                  <>
+                    <span className="font-semibold tabular-nums">
+                      {formatearDinero(fila.ultimoPrecio)}
+                    </span>
+                    {fila.ultimoPrecioAt !== null && (
+                      <span className="block text-xs text-slate-400">
+                        {formatearFechaArgentina(new Date(fila.ultimoPrecioAt))}
+                      </span>
+                    )}
+                  </>
+                )}
+              </span>
+
+              {puedeEditar && fila.activo && !fila.esPreferido && (
+                <button
+                  type="button"
+                  disabled={marcarPreferido.isPending}
+                  onClick={() => {
+                    marcarPreferido.mutate({
+                      proveedorId: fila.proveedor.id,
+                      asociacionId: fila.id,
+                    });
+                  }}
+                  className="min-h-10 w-full rounded-lg px-3 text-left text-sm text-corteza hover:underline disabled:opacity-50 sm:w-auto sm:text-right"
+                >
+                  Marcar preferido
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Tarjeta>
   );
 }

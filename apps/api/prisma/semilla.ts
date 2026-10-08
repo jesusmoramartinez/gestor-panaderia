@@ -14,6 +14,11 @@ import {
   INSUMOS_LAFERRERE,
   INSUMOS_VECINA,
 } from './semilla-insumos.js';
+import {
+  type DefinicionProveedor,
+  PROVEEDORES_LAFERRERE,
+  PROVEEDORES_VECINA,
+} from './semilla-proveedores.js';
 import { hashearPassword } from '../src/lib/password.js';
 
 /**
@@ -59,6 +64,7 @@ export type DefinicionEmpresa = {
   sucursales: readonly DefinicionSucursal[];
   usuarios: readonly DefinicionUsuario[];
   insumos: readonly DefinicionInsumo[];
+  proveedores: readonly DefinicionProveedor[];
 };
 
 // ===========================================================================
@@ -104,6 +110,7 @@ export const EMPRESAS: readonly DefinicionEmpresa[] = [
       },
     ],
     insumos: INSUMOS_LAFERRERE,
+    proveedores: PROVEEDORES_LAFERRERE,
   },
 
   // ===========================================================================
@@ -129,6 +136,7 @@ export const EMPRESAS: readonly DefinicionEmpresa[] = [
       },
     ],
     insumos: INSUMOS_VECINA,
+    proveedores: PROVEEDORES_VECINA,
   },
 ];
 
@@ -291,6 +299,84 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
             update: { stockMinimo },
           });
         }
+      }
+
+      // --- Proveedores y qué insumo le compramos a cada uno ---
+
+      // Los insumos ya están sembrados: los leemos una vez y resolvemos los
+      // nombres contra ids. Buscar por nombre adentro del loop haría una
+      // consulta por línea.
+      const insumos = await tx.insumo.findMany({
+        where: { empresaId: empresa.id },
+        select: { id: true, nombre: true, presentaciones: { select: { id: true, nombre: true } } },
+      });
+      const insumosPorNombre = new Map(insumos.map((fila) => [fila.nombre, fila]));
+
+      /** Las que hay que marcar como preferidas en la segunda pasada. */
+      const preferidas: { insumoId: string; asociacionId: string }[] = [];
+
+      for (const definicion of definicionEmpresa.proveedores) {
+        const { insumos: lineas, ...datosProveedor } = definicion;
+
+        const proveedor = await tx.proveedor.upsert({
+          where: { empresaId_nombre: { empresaId: empresa.id, nombre: definicion.nombre } },
+          create: { empresaId: empresa.id, ...datosProveedor },
+          update: { ...datosProveedor, activo: true },
+          select: { id: true },
+        });
+
+        for (const linea of lineas) {
+          const insumo = insumosPorNombre.get(linea.insumo);
+          if (!insumo) throw new Error(`No existe el insumo ${linea.insumo}`);
+
+          const presentacionId =
+            linea.presentacion === undefined
+              ? null
+              : (insumo.presentaciones.find((fila) => fila.nombre === linea.presentacion)?.id ??
+                null);
+          if (linea.presentacion !== undefined && presentacionId === null) {
+            throw new Error(`No existe la presentación ${linea.presentacion} de ${linea.insumo}`);
+          }
+
+          const precio = linea.ultimoPrecio ?? null;
+          const datos = {
+            presentacionId,
+            codigoProveedor: linea.codigoProveedor ?? null,
+            ultimoPrecio: precio,
+            // El CHECK de la base exige que el precio y su fecha vayan juntos.
+            ultimoPrecioAt: precio === null ? null : new Date(),
+            activo: true,
+          };
+
+          const asociacion = await tx.proveedorInsumo.upsert({
+            where: {
+              proveedorId_insumoId: { proveedorId: proveedor.id, insumoId: insumo.id },
+            },
+            // En esta pasada NADIE queda preferido: así el índice único parcial
+            // no puede chocar, sin importar en qué orden estén los datos de
+            // arriba. Las marcas se ponen después, cuando ya están todas.
+            create: {
+              empresaId: empresa.id,
+              proveedorId: proveedor.id,
+              insumoId: insumo.id,
+              esPreferido: false,
+              ...datos,
+            },
+            update: { esPreferido: false, ...datos },
+            select: { id: true },
+          });
+
+          if (linea.esPreferido === true) {
+            preferidas.push({ insumoId: insumo.id, asociacionId: asociacion.id });
+          }
+        }
+      }
+
+      for (const { asociacionId } of preferidas) {
+        await tx.proveedorInsumo.update({
+          where: { id: asociacionId },
+          data: { esPreferido: true },
+        });
       }
     });
   }

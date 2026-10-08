@@ -11,5 +11,6 @@ export * from './dominio/permisos.js';
 export * from './dominio/unidades.js';
 export * from './esquemas/auth.js';
 export * from './esquemas/insumos.js';
+export * from './esquemas/proveedores.js';
 export * from './esquemas/salud.js';
 export * from './esquemas/unidades.js';
