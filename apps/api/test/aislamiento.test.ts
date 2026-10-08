@@ -10,6 +10,7 @@ import type {
   ProveedorResumen,
   RecepcionDetalle,
   StockPorSucursal,
+  TransferenciaDetalle,
   UnidadMedida,
   UsuarioResumen,
   UsuarioSesion,
@@ -406,7 +407,7 @@ describe('aislamiento entre empresas', () => {
     expect(r.status).toBe(200);
 
     const motivos = r.cuerpo as Motivo[];
-    expect(motivos).toHaveLength(9);
+    expect(motivos).toHaveLength(10);
 
     const propios = await prisma.motivoMovimiento.findMany({
       where: { empresaId: laferrere.empresaId },
@@ -603,6 +604,83 @@ describe('aislamiento entre empresas', () => {
   it('el costo promedio de un insumo ajeno responde 404', async () => {
     await entrarComo('dueno@vecina.test');
     expect((await api.get(`/api/insumos/${laferrere.harina000Id}/costo`)).status).toBe(404);
+  });
+
+  // --- Fase 9: transferencias ----------------------------------------------
+
+  it('una transferencia ajena responde 404 y no se puede recibir ni anular', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const laf = await prisma.sucursal.findFirstOrThrow({
+      where: { empresaId: laferrere.empresaId, codigo: 'LAF' },
+    });
+    const kg = await prisma.unidadMedida.findFirstOrThrow({
+      where: { empresaId: laferrere.empresaId, codigo: 'kg' },
+    });
+    const insumo = await api.post('/api/insumos', {
+      nombre: `Insumo transferencia aislamiento ${String(Date.now())}`,
+      unidadBaseId: kg.id,
+    });
+    const insumoId = (insumo.cuerpo as { id: string }).id;
+    await api.post('/api/movimientos/saldo-inicial', {
+      sucursalId: laferrere.sucursalCentralId,
+      lineas: [{ insumoId, cantidad: '10' }],
+    });
+    const enviada = await api.post('/api/transferencias', {
+      sucursalOrigenId: laferrere.sucursalCentralId,
+      sucursalDestinoId: laf.id,
+      lineas: [{ insumoId, cantidad: '4' }],
+    });
+    expect(enviada.status).toBe(201);
+    const transferencia = enviada.cuerpo as TransferenciaDetalle;
+
+    api.olvidarCookies();
+    await entrarComo('dueno@vecina.test');
+    expect((await api.get(`/api/transferencias/${transferencia.id}`)).status).toBe(404);
+    const recibir = await api.post(`/api/transferencias/${transferencia.id}/recibir`, {
+      lineas: [{ lineaId: transferencia.lineas[0]?.id, cantidadRecibida: '4' }],
+    });
+    expect(recibir.status).toBe(404);
+    const anular = await api.post(`/api/transferencias/${transferencia.id}/anular`, {
+      motivo: 'Ataque',
+    });
+    expect(anular.status).toBe(404);
+
+    const sigue = await prisma.transferencia.findUniqueOrThrow({ where: { id: transferencia.id } });
+    expect(sigue.estado).toBe('ENVIADA');
+  });
+
+  it('no se puede mandar una transferencia a una sucursal de otra empresa', async () => {
+    const vecina = await entrarComo('dueno@vecina.test');
+    const suSucursal = vecina.sucursales[0]?.id ?? '';
+    const suInsumo = await prisma.insumo.findFirstOrThrow({
+      where: { empresa: { nombre: { contains: 'Vecina' } } },
+    });
+
+    const r = await api.post('/api/transferencias', {
+      sucursalOrigenId: suSucursal,
+      sucursalDestinoId: laferrere.sucursalCentralId,
+      forzar: true,
+      lineas: [{ insumoId: suInsumo.id, cantidad: '1' }],
+    });
+    expect(r.status).toBe(400);
+    expect(
+      await prisma.transferencia.count({
+        where: {
+          sucursalDestinoId: laferrere.sucursalCentralId,
+          empresaId: { not: laferrere.empresaId },
+        },
+      }),
+    ).toBe(0);
+  });
+
+  it('las bandejas de transferencias y la lista de sucursales no cruzan empresas', async () => {
+    await entrarComo('dueno@vecina.test');
+    // Pedir la bandeja de una sucursal ajena: el middleware la rechaza.
+    const ajena = await api.get(`/api/transferencias?sucursalId=${laferrere.sucursalCentralId}`);
+    expect(ajena.status).toBe(403);
+
+    const sucursales = (await api.get('/api/sucursales')).cuerpo as { id: string }[];
+    expect(sucursales.map((s) => s.id)).not.toContain(laferrere.sucursalCentralId);
   });
 
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {

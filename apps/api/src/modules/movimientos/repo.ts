@@ -35,6 +35,14 @@ const SELECCION_MOVIMIENTO = {
   recepcionCompra: {
     select: { id: true, numero: true, numeroRemito: true, proveedor: { select: { nombre: true } } },
   },
+  transferencia: {
+    select: {
+      id: true,
+      numero: true,
+      origen: { select: { nombre: true } },
+      destino: { select: { nombre: true } },
+    },
+  },
 } as const;
 
 export type FilaMovimiento = Prisma.MovimientoStockGetPayload<{

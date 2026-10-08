@@ -49,19 +49,20 @@ model Empresa {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  sucursales  Sucursal[]
-  usuarios    Usuario[]
-  auditorias  Auditoria[]
-  unidades    UnidadMedida[]
-  categorias  CategoriaInsumo[]
-  insumos     Insumo[]
-  proveedores Proveedor[]
-  motivos     MotivoMovimiento[]
-  movimientos MovimientoStock[]
-  contadores  ContadorDocumento[]
-  ordenes     OrdenCompra[]
-  recepciones RecepcionCompra[]
-  plantillas  PlantillaPedido[]
+  sucursales     Sucursal[]
+  usuarios       Usuario[]
+  auditorias     Auditoria[]
+  unidades       UnidadMedida[]
+  categorias     CategoriaInsumo[]
+  insumos        Insumo[]
+  proveedores    Proveedor[]
+  motivos        MotivoMovimiento[]
+  movimientos    MovimientoStock[]
+  contadores     ContadorDocumento[]
+  ordenes        OrdenCompra[]
+  recepciones    RecepcionCompra[]
+  plantillas     PlantillaPedido[]
+  transferencias Transferencia[]
 
   @@map("empresa")
 }
@@ -87,13 +88,16 @@ model Sucursal {
   // onDelete: Restrict → la base impide borrar una empresa que tenga
   // sucursales. En este sistema no borramos nada (desactivamos), así que esto
   // es una red de seguridad contra un borrado accidental.
-  empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  usuarios        UsuarioSucursal[]
-  insumoSucursals InsumoSucursal[]
-  movimientos     MovimientoStock[]
-  ordenes         OrdenCompra[]
-  recepciones     RecepcionCompra[]
-  plantillas      PlantillaPedido[]
+  empresa                 Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  usuarios                UsuarioSucursal[]
+  insumoSucursals         InsumoSucursal[]
+  movimientos             MovimientoStock[]
+  ordenes                 OrdenCompra[]
+  recepciones             RecepcionCompra[]
+  plantillas              PlantillaPedido[]
+  // Dos relaciones con la misma tabla: de dónde sale y a dónde llega.
+  transferenciasSalientes Transferencia[]   @relation("TransferenciaOrigen")
+  transferenciasEntrantes Transferencia[]   @relation("TransferenciaDestino")
 
   // La unicidad SIEMPRE empieza por empresa_id: dos panaderías distintas
   // pueden tener una sucursal con el mismo código.
@@ -125,14 +129,17 @@ model Usuario {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa     Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  sucursales  UsuarioSucursal[]
-  sesiones    Sesion[]
-  auditorias  Auditoria[]
-  movimientos MovimientoStock[]
-  ordenes     OrdenCompra[]
-  recepciones RecepcionCompra[] @relation("RecepcionCargadaPor")
-  anulaciones RecepcionCompra[] @relation("RecepcionAnuladaPor")
+  empresa                 Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursales              UsuarioSucursal[]
+  sesiones                Sesion[]
+  auditorias              Auditoria[]
+  movimientos             MovimientoStock[]
+  ordenes                 OrdenCompra[]
+  recepciones             RecepcionCompra[] @relation("RecepcionCargadaPor")
+  anulaciones             RecepcionCompra[] @relation("RecepcionAnuladaPor")
+  transferenciasEnviadas  Transferencia[]   @relation("TransferenciaEnviadaPor")
+  transferenciasRecibidas Transferencia[]   @relation("TransferenciaRecibidaPor")
+  transferenciasAnuladas  Transferencia[]   @relation("TransferenciaAnuladaPor")
 
   @@index([empresaId])
   @@map("usuario")
@@ -303,9 +310,10 @@ model UnidadMedida {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa     Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  insumos     Insumo[]
-  movimientos MovimientoStock[]
+  empresa             Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  insumos             Insumo[]
+  movimientos         MovimientoStock[]
+  lineasTransferencia LineaTransferencia[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId])
@@ -372,16 +380,17 @@ model Insumo {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa         Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  categoria       CategoriaInsumo?       @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
-  unidadBase      UnidadMedida           @relation(fields: [unidadBaseId], references: [id], onDelete: Restrict)
-  presentaciones  PresentacionInsumo[]
-  porSucursal     InsumoSucursal[]
-  proveedores     ProveedorInsumo[]
-  movimientos     MovimientoStock[]
-  lineasOrden     LineaOrdenCompra[]
-  lineasRecepcion LineaRecepcionCompra[]
-  lineasPlantilla LineaPlantillaPedido[]
+  empresa             Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  categoria           CategoriaInsumo?       @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  unidadBase          UnidadMedida           @relation(fields: [unidadBaseId], references: [id], onDelete: Restrict)
+  presentaciones      PresentacionInsumo[]
+  porSucursal         InsumoSucursal[]
+  proveedores         ProveedorInsumo[]
+  movimientos         MovimientoStock[]
+  lineasOrden         LineaOrdenCompra[]
+  lineasRecepcion     LineaRecepcionCompra[]
+  lineasPlantilla     LineaPlantillaPedido[]
+  lineasTransferencia LineaTransferencia[]
 
   // Nombre único por empresa: dos filas "Harina 000" partirían el stock en dos
   // sin que nadie se dé cuenta.
@@ -699,6 +708,10 @@ model MovimientoStock {
   /// movimientos COMPRA (lo exige un CHECK) y también en sus reversas, para
   /// que el historial pueda decir "anulación de la recepción 12".
   recepcionCompraId String? @map("recepcion_compra_id") @db.Uuid
+  /// La transferencia que lo originó: su salida, su entrada, la merma por
+  /// diferencia o la reversa al anularla. Obligatorio en los dos tipos
+  /// TRANSFERENCIA_* (lo exige un CHECK).
+  transferenciaId   String? @map("transferencia_id") @db.Uuid
 
   /// Si este movimiento anula a otro. UNIQUE: un movimiento se puede revertir
   /// UNA sola vez, y eso lo garantiza la base, no la buena memoria del código.
@@ -717,6 +730,7 @@ model MovimientoStock {
   usuario         Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   motivo          MotivoMovimiento? @relation(fields: [motivoId], references: [id], onDelete: Restrict)
   recepcionCompra RecepcionCompra?  @relation(fields: [recepcionCompraId], references: [id], onDelete: Restrict)
+  transferencia   Transferencia?    @relation(fields: [transferenciaId], references: [id], onDelete: Restrict)
 
   // Relación de la tabla CONSIGO MISMA: una reversa apunta al movimiento que
   // anula. Como revierteAId es @unique, Prisma la trata como uno-a-uno, y por
@@ -739,6 +753,7 @@ model MovimientoStock {
   // Para traer o anular una operación completa.
   @@index([operacionId])
   @@index([recepcionCompraId])
+  @@index([transferenciaId])
   @@map("movimiento_stock")
 }
 
@@ -750,6 +765,7 @@ model MovimientoStock {
 enum TipoDocumento {
   ORDEN_COMPRA
   RECEPCION_COMPRA
+  TRANSFERENCIA
 
   @@map("tipo_documento")
 }
@@ -1006,4 +1022,99 @@ model LineaPlantillaPedido {
   @@unique([plantillaId, insumoId])
   @@index([insumoId])
   @@map("linea_plantilla_pedido")
+}
+
+// ===========================================================================
+// FASE 9 — Transferencias entre sucursales
+// ===========================================================================
+
+enum EstadoTransferencia {
+  /// Salió del origen y todavía no llegó: está EN TRÁNSITO.
+  ENVIADA
+  RECIBIDA
+  ANULADA
+
+  @@map("estado_transferencia")
+}
+
+/// Un envío de insumos de una sucursal a otra.
+///
+/// Son DOS hechos, hechos por dos personas en dos lugares: enviar (sale del
+/// origen) y recibir (entra al destino). Entre medio, la mercadería está en
+/// tránsito: ya no está en el stock del origen y todavía no está en el del
+/// destino. Eso es correcto, es la realidad física: va en la camioneta.
+///
+/// Es un movimiento INTERNO, al costo: las dos sucursales son la misma
+/// empresa (supuesto de C-20 y C-30, confirmado al arrancar la Fase 9).
+model Transferencia {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId         String              @map("empresa_id") @db.Uuid
+  sucursalOrigenId  String              @map("sucursal_origen_id") @db.Uuid
+  sucursalDestinoId String              @map("sucursal_destino_id") @db.Uuid
+  numero            Int
+  estado            EstadoTransferencia @default(ENVIADA)
+  notas             String?
+
+  fechaEnvio       DateTime @map("fecha_envio") @db.Timestamptz(6)
+  usuarioEnvioId   String   @map("usuario_envio_id") @db.Uuid
+  operacionEnvioId String   @map("operacion_envio_id") @db.Uuid
+
+  fechaRecepcion       DateTime? @map("fecha_recepcion") @db.Timestamptz(6)
+  usuarioRecepcionId   String?   @map("usuario_recepcion_id") @db.Uuid
+  operacionRecepcionId String?   @map("operacion_recepcion_id") @db.Uuid
+  notaRecepcion        String?   @map("nota_recepcion")
+
+  anuladaAt       DateTime? @map("anulada_at") @db.Timestamptz(6)
+  anuladaPorId    String?   @map("anulada_por_id") @db.Uuid
+  motivoAnulacion String?   @map("motivo_anulacion")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa          Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  origen           Sucursal             @relation("TransferenciaOrigen", fields: [sucursalOrigenId], references: [id], onDelete: Restrict)
+  destino          Sucursal             @relation("TransferenciaDestino", fields: [sucursalDestinoId], references: [id], onDelete: Restrict)
+  usuarioEnvio     Usuario              @relation("TransferenciaEnviadaPor", fields: [usuarioEnvioId], references: [id], onDelete: Restrict)
+  usuarioRecepcion Usuario?             @relation("TransferenciaRecibidaPor", fields: [usuarioRecepcionId], references: [id], onDelete: Restrict)
+  anuladaPor       Usuario?             @relation("TransferenciaAnuladaPor", fields: [anuladaPorId], references: [id], onDelete: Restrict)
+  lineas           LineaTransferencia[]
+  movimientos      MovimientoStock[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, sucursalOrigenId, estado])
+  @@index([empresaId, sucursalDestinoId, estado])
+  @@map("transferencia")
+}
+
+/// Una línea: cuánto salió de un insumo y cuánto llegó.
+///
+/// `cantidadBaseRecibida` es null mientras está en tránsito. La diferencia
+/// (enviada − recibida) es la merma por "Diferencia en transferencia" que se
+/// registra en el destino al recibir.
+model LineaTransferencia {
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId       String @map("empresa_id") @db.Uuid
+  transferenciaId String @map("transferencia_id") @db.Uuid
+  insumoId        String @map("insumo_id") @db.Uuid
+
+  /// Lo que tipeó quien envió, en qué unidad, y el factor (snapshot).
+  cantidadIngresada Decimal @map("cantidad_ingresada") @db.Decimal(18, 6)
+  unidadIngresadaId String  @map("unidad_ingresada_id") @db.Uuid
+  factorConversion  Decimal @map("factor_conversion") @db.Decimal(20, 10)
+
+  cantidadBaseEnviada  Decimal  @map("cantidad_base_enviada") @db.Decimal(18, 6)
+  cantidadBaseRecibida Decimal? @map("cantidad_base_recibida") @db.Decimal(18, 6)
+
+  /// El costo promedio al ENVIAR, congelado. La entrada en el destino y la
+  /// merma por diferencia usan este mismo costo: la mercadería viaja al
+  /// costo, no se revaloriza en el camino.
+  costoUnitario Decimal? @map("costo_unitario") @db.Decimal(18, 4)
+
+  transferencia   Transferencia @relation(fields: [transferenciaId], references: [id], onDelete: Restrict)
+  insumo          Insumo        @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  unidadIngresada UnidadMedida  @relation(fields: [unidadIngresadaId], references: [id], onDelete: Restrict)
+
+  @@unique([transferenciaId, insumoId])
+  @@index([insumoId])
+  @@map("linea_transferencia")
 }

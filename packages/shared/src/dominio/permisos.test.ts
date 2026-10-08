@@ -74,7 +74,16 @@ describe('matriz de permisos', () => {
       'ajuste:crear',
       'compra:ver',
       'compra:recibir',
+      'transferencia:enviar',
+      'transferencia:recibir',
     ]);
+  });
+
+  it('las transferencias las mueven el dueño y el encargado, no el empleado (Fase 9)', () => {
+    for (const permiso of ['transferencia:enviar', 'transferencia:recibir'] as const) {
+      expect(tienePermiso('ENCARGADO', permiso), permiso).toBe(true);
+      expect(tienePermiso('EMPLEADO', permiso), permiso).toBe(false);
+    }
   });
 
   it('pedir y anular compras es solo del dueño; recibir, también del encargado (C-13)', () => {

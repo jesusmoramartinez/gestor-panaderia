@@ -11,6 +11,8 @@ import { insumosRouter } from './modules/insumos/routes.js';
 import { movimientosRouter } from './modules/movimientos/routes.js';
 import { plantillasRouter } from './modules/plantillas/routes.js';
 import { proveedoresRouter } from './modules/proveedores/routes.js';
+import { sucursalesRouter } from './modules/sucursales/routes.js';
+import { transferenciasRouter } from './modules/transferencias/routes.js';
 import { unidadesRouter } from './modules/unidades/routes.js';
 import { usuariosRouter } from './modules/usuarios/routes.js';
 
@@ -44,6 +46,8 @@ export function crearApp(): Express {
   app.use('/api', movimientosRouter);
   app.use('/api', comprasRouter);
   app.use('/api', plantillasRouter);
+  app.use('/api', sucursalesRouter);
+  app.use('/api', transferenciasRouter);
 
   // Cualquier otra ruta: 404 con la misma forma que el resto de los errores.
   app.use((_req, res) => {

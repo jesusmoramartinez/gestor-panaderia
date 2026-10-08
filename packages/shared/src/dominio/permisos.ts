@@ -95,6 +95,17 @@ export const PERMISOS = [
    * cambia el costo promedio de TODA la empresa.
    */
   'compra:anular',
+  /**
+   * ENVIAR insumos a otra sucursal, y anular un envío que todavía no llegó.
+   * Se exige poder operar en la sucursal de ORIGEN.
+   */
+  'transferencia:enviar',
+  /**
+   * CONFIRMAR que llegó una transferencia (C-19: "el que recibe confirma").
+   * Se exige poder operar en la sucursal de DESTINO. Decisión del cliente al
+   * arrancar la Fase 9: el dueño y el encargado, no el empleado.
+   */
+  'transferencia:recibir',
 ] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
@@ -125,6 +136,8 @@ export const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
     'ajuste:crear',
     'compra:ver',
     'compra:recibir',
+    'transferencia:enviar',
+    'transferencia:recibir',
   ],
   // El empleado del turno carga lo que PASÓ en su sucursal: lo que usó y lo
   // que se perdió. No configura el catálogo, no ve precios, no anula nada y no

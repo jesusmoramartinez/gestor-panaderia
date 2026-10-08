@@ -20,7 +20,7 @@ export const CantidadMovimientoSchema = z
   .refine((valor) => esDecimalValido(valor), 'No es un número válido')
   .refine((valor) => aDecimal(valor).greaterThan(0), 'Tiene que ser mayor que cero');
 
-const UuidOpcional = z
+export const UuidOpcional = z
   .union([z.literal(''), z.null(), z.uuid('Identificador inválido')])
   .nullish()
   .transform((valor) => (valor === '' || valor === undefined ? null : valor));
@@ -302,6 +302,15 @@ export const MovimientoSchema = z.object({
       numero: z.number().int(),
       numeroRemito: z.string().nullable(),
       proveedorNombre: z.string(),
+    })
+    .nullable(),
+  /** La transferencia que lo originó, con de dónde salió y a dónde fue. */
+  transferencia: z
+    .object({
+      id: z.uuid(),
+      numero: z.number().int(),
+      origenNombre: z.string(),
+      destinoNombre: z.string(),
     })
     .nullable(),
 });

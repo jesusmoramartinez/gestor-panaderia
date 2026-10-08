@@ -69,6 +69,15 @@ function aMovimiento(fila: repo.FilaMovimiento): Movimiento {
             numeroRemito: fila.recepcionCompra.numeroRemito,
             proveedorNombre: fila.recepcionCompra.proveedor.nombre,
           },
+    transferencia:
+      fila.transferencia === null
+        ? null
+        : {
+            id: fila.transferencia.id,
+            numero: fila.transferencia.numero,
+            origenNombre: fila.transferencia.origen.nombre,
+            destinoNombre: fila.transferencia.destino.nombre,
+          },
   };
 }
 
@@ -416,6 +425,20 @@ export async function anular(
         'así se corrigen juntos el stock, la orden y el costo.',
       409,
       { recepcionCompraId: original.recepcionCompra?.id ?? null },
+    );
+  }
+
+  // Lo mismo con todo lo que nació de una transferencia: la salida, la
+  // entrada y la merma por diferencia. Se corrige desde la transferencia
+  // (anulándola mientras está en tránsito), nunca suelto: si no, el origen y
+  // el destino dejarían de contar la misma historia.
+  if (original.transferencia !== null) {
+    throw new AppError(
+      'MOVIMIENTO_DE_TRANSFERENCIA',
+      `Este movimiento es de la transferencia ${String(original.transferencia.numero)}: ` +
+        'se corrige desde la transferencia, no suelto.',
+      409,
+      { transferenciaId: original.transferencia.id },
     );
   }
 

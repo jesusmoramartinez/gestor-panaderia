@@ -887,10 +887,10 @@ describe('GET /api/motivos', () => {
   it('lista los motivos de la empresa y se puede filtrar por tipo', async () => {
     await entrarComo('dueno@panaderia.test');
     const todos = (await api.get('/api/motivos')).cuerpo as Motivo[];
-    expect(todos.length).toBe(9);
+    expect(todos.length).toBe(10);
 
     const deMerma = (await api.get('/api/motivos?tipo=MERMA')).cuerpo as Motivo[];
-    expect(deMerma.length).toBe(4);
+    expect(deMerma.length).toBe(5);
     expect(deMerma.every((m) => m.tipoAplicable === 'MERMA')).toBe(true);
     expect(deMerma.map((m) => m.nombre)).toContain('Vencido');
   });
@@ -939,9 +939,25 @@ describe('el CHECK de la base y la lógica de TypeScript dicen lo mismo', () => 
                 operacionId: crypto.randomUUID(),
               },
             });
+            // Y desde la Fase 9, los TRANSFERENCIA_* necesitan su transferencia.
+            const destino = await tx.sucursal.findFirstOrThrow({
+              where: { empresaId: empresa.id, id: { not: centralId } },
+            });
+            const transferencia = await tx.transferencia.create({
+              data: {
+                empresaId: empresa.id,
+                sucursalOrigenId: centralId,
+                sucursalDestinoId: destino.id,
+                numero: 999_999,
+                fechaEnvio: new Date(),
+                usuarioEnvioId: usuario.id,
+                operacionEnvioId: crypto.randomUUID(),
+              },
+            });
             await tx.movimientoStock.create({
               data: {
                 recepcionCompraId: recepcion.id,
+                transferenciaId: transferencia.id,
                 costoUnitario: '1',
                 empresaId: empresa.id,
                 sucursalId: centralId,

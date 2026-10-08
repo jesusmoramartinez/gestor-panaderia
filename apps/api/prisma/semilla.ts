@@ -57,6 +57,9 @@ export const MOTIVOS = [
   { tipoAplicable: 'MERMA', nombre: 'Roto / derramado' },
   { tipoAplicable: 'MERMA', nombre: 'Plaga o humedad' },
   { tipoAplicable: 'MERMA', nombre: 'Error de carga' },
+  // La usa sola la recepción de una transferencia cuando llega menos de lo que
+  // salió (Fase 9): la diferencia se registra como merma en el destino.
+  { tipoAplicable: 'MERMA', nombre: 'Diferencia en transferencia' },
   { tipoAplicable: 'AJUSTE', nombre: 'Diferencia de conteo' },
   { tipoAplicable: 'AJUSTE', nombre: 'Diferencia en transferencia' },
   { tipoAplicable: 'AJUSTE', nombre: 'Error de carga' },

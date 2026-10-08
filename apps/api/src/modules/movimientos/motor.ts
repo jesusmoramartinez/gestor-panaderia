@@ -80,6 +80,8 @@ export type EntradaMovimiento = {
   costoUnitario?: Numerico | null;
   /** El documento de compra que origina el movimiento (Fase 8). */
   recepcionCompraId?: string | null;
+  /** La transferencia que origina el movimiento (Fase 9). */
+  transferenciaId?: string | null;
 };
 
 export type OpcionesRegistro = {
@@ -500,6 +502,17 @@ export async function registrarMovimientos(
       );
     }
 
+    if (
+      (entrada.tipo === 'TRANSFERENCIA_SALIDA' || entrada.tipo === 'TRANSFERENCIA_ENTRADA') &&
+      entrada.transferenciaId == null
+    ) {
+      throw new AppError(
+        'ERROR_INTERNO',
+        'Un movimiento de transferencia tiene que llegar al motor con su transferencia.',
+        500,
+      );
+    }
+
     preparados.push(prepararMovimiento(entrada, insumo, unidadIngresada, motivoId));
   }
 
@@ -593,6 +606,7 @@ export async function registrarMovimientos(
             ? null
             : preparado.entrada.costoUnitario.toString(),
       recepcionCompraId: preparado.entrada.recepcionCompraId ?? null,
+      transferenciaId: preparado.entrada.transferenciaId ?? null,
       fecha,
       usuarioId: ctx.usuarioId,
       motivoId: preparado.motivoId,
