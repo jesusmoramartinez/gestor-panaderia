@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ACCIONES_ORDEN, ESTADOS_ORDEN } from '../dominio/compras.js';
+import { aDecimal, esDecimalValido, normalizarNumero } from '../dominio/decimal.js';
 import { CantidadMovimientoSchema, FechaHechoSchema, NotasOpcional } from './movimientos.js';
 import { PrecioOpcional, PrecioSchema } from './proveedores.js';
 
@@ -338,8 +339,9 @@ export const RecepcionDetalleSchema = RecepcionResumenSchema.extend({
   motivoAnulacion: z.string().nullable(),
   lineas: z.array(LineaRecepcionSalidaSchema),
   /**
-   * El costo promedio de cada insumo DESPUÉS de esta operación. Es lo que
-   * permite mostrar "la harina quedó en $1.100/kg" al confirmar.
+   * El costo promedio ACTUAL de cada insumo de la recepción. Recién
+   * confirmada, es el que quedó después de ella ("la harina quedó en
+   * $1.100/kg"); mirada días después, ya incluye las compras posteriores.
    */
   costos: z.array(
     z.object({
@@ -378,3 +380,119 @@ export const CostoInsumoSchema = z.object({
   costoPromedio: z.string().nullable(),
 });
 export type CostoInsumo = z.infer<typeof CostoInsumoSchema>;
+
+// ===========================================================================
+// El formulario del frontend
+// ===========================================================================
+
+/**
+ * El esquema que usa LA PANTALLA de líneas de compra, para sus tres usos:
+ * orden de compra, recepción sin orden y plantilla.
+ *
+ * Mismo truco que `CargarMovimientoFormSchema` (Fase 6): un formulario de
+ * React Hook Form necesita UN tipo de valores, así que este esquema es el
+ * más PERMISIVO de los tres (todo lo opcional, opcional). Cuando la pantalla
+ * es una recepción, le encadena `conPrecioObligatorio()`.
+ *
+ * La API valida igual con su esquema estricto: esto es para que el error
+ * aparezca abajo del campo antes de mandar nada, no la defensa.
+ */
+export const FormularioCompraSchema = z.object({
+  /** Solo para las plantillas. */
+  nombre: z.string().trim().max(80, 'Máximo 80 caracteres'),
+  proveedorId: z.uuid('Hay que elegir un proveedor'),
+  sucursalId: z.uuid('Hay que elegir la sucursal que recibe'),
+  fechaEntregaEstimada: DiaOpcional,
+  fecha: FechaHechoSchema,
+  numeroRemito: TextoOpcional(40),
+  numeroFactura: TextoOpcional(40),
+  notas: NotasOpcional,
+  lineas: z
+    .array(LineaOrdenSchema)
+    .min(1, 'Hay que cargar al menos un insumo')
+    .max(100, 'Máximo 100 líneas')
+    .refine(sinInsumosRepetidos, MENSAJE_REPETIDO),
+});
+export type FormularioCompraInput = z.infer<typeof FormularioCompraSchema>;
+
+/** En una recepción el precio es obligatorio (C-7): sin precio no hay costo. */
+export function conPrecioObligatorio(esquema: typeof FormularioCompraSchema) {
+  return esquema.superRefine((valores, ctx) => {
+    valores.lineas.forEach((linea, indice) => {
+      if (linea.precioUnitario === null) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Hay que indicar el precio',
+          path: ['lineas', indice, 'precioUnitario'],
+        });
+      }
+    });
+  });
+}
+
+/** Una plantilla necesita nombre. */
+export function conNombreObligatorio(esquema: typeof FormularioCompraSchema) {
+  return esquema.refine((valores) => valores.nombre.length > 0, {
+    error: 'Ponele un nombre',
+    path: ['nombre'],
+  });
+}
+
+/**
+ * El formulario de "recibir una orden".
+ *
+ * La pantalla muestra TODAS las líneas con lo pendiente precargado, y la
+ * persona corrige lo que llegó distinto. Lo que no llegó se deja en cero o
+ * vacío: por eso acá la cantidad acepta cero, y la API no (una línea de cero
+ * no significa nada). `aRecepcionDeOrden` filtra esas líneas antes de mandar.
+ */
+const CantidadRecibidaSchema = z
+  .string()
+  .trim()
+  .transform((valor) => (valor === '' ? '0' : normalizarNumero(valor)))
+  .refine((valor) => esDecimalValido(valor), 'No es un número válido')
+  .refine((valor) => aDecimal(valor).greaterThanOrEqualTo(0), 'No puede ser negativo');
+
+export const RecibirOrdenFormSchema = DatosRecepcion.extend({
+  lineas: z
+    .array(
+      z.object({
+        lineaOrdenId: z.uuid(),
+        cantidad: CantidadRecibidaSchema,
+        precioUnitario: PrecioOpcional,
+      }),
+    )
+    .superRefine((lineas, ctx) => {
+      if (lineas.every((linea) => aDecimal(linea.cantidad).isZero())) {
+        ctx.addIssue({ code: 'custom', message: 'No cargaste ninguna cantidad recibida' });
+      }
+      lineas.forEach((linea, indice) => {
+        // Solo lo que LLEGÓ necesita precio (C-7).
+        if (!aDecimal(linea.cantidad).isZero() && linea.precioUnitario === null) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Hay que indicar el precio',
+            path: [indice, 'precioUnitario'],
+          });
+        }
+      });
+    }),
+});
+export type RecibirOrdenFormInput = z.infer<typeof RecibirOrdenFormSchema>;
+
+/** Lo que va a la API: solo las líneas que llegaron. */
+export function aRecepcionDeOrden(valores: RecibirOrdenFormInput): RecepcionDeOrdenInput {
+  return {
+    fecha: valores.fecha,
+    numeroRemito: valores.numeroRemito,
+    numeroFactura: valores.numeroFactura,
+    notas: valores.notas,
+    lineas: valores.lineas
+      .filter((linea) => !aDecimal(linea.cantidad).isZero())
+      .map((linea) => ({
+        lineaOrdenId: linea.lineaOrdenId,
+        cantidad: linea.cantidad,
+        precioUnitario: linea.precioUnitario ?? '0',
+      })),
+  };
+}

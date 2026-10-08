@@ -216,6 +216,7 @@ function Fila({
   // Un movimiento ya anulado se muestra atenuado: sigue siendo parte del
   // historial (no se borró), pero ya no afecta el saldo.
   const anulado = movimiento.revertido;
+  const verCompras = usePuede('compra:ver');
 
   return (
     <li
@@ -257,13 +258,33 @@ function Fila({
         )}
       </div>
 
+      {movimiento.recepcion !== null && (
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          {/* El link solo sirve a quien puede ver compras; al resto, el dato
+              igual le dice de dónde vino la mercadería. */}
+          {verCompras ? (
+            <Link to={`/recepciones/${movimiento.recepcion.id}`} className="underline">
+              Recepción {movimiento.recepcion.numero}
+            </Link>
+          ) : (
+            `Recepción ${String(movimiento.recepcion.numero)}`
+          )}
+          {' · '}
+          {movimiento.recepcion.proveedorNombre}
+          {movimiento.recepcion.numeroRemito !== null &&
+            ` · remito ${movimiento.recepcion.numeroRemito}`}
+        </p>
+      )}
+
       {movimiento.notas !== null && (
         <p className="mt-1 text-sm text-slate-600 italic dark:text-slate-300">
           «{movimiento.notas}»
         </p>
       )}
 
-      {puedeAnular && !anulado && movimiento.tipo !== 'REVERSA' && (
+      {/* Una COMPRA no se anula desde acá: se anula su recepción, que corrige
+          juntos el stock, la orden y el costo (la API también lo impide). */}
+      {puedeAnular && !anulado && movimiento.tipo !== 'REVERSA' && movimiento.tipo !== 'COMPRA' && (
         <button
           type="button"
           onClick={onAnular}

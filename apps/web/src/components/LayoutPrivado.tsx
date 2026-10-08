@@ -62,6 +62,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
   // sentido mostrarle la pestaña: haría clic y se comería un 403. Esto es
   // comodidad, no seguridad: la defensa real está en la API.
   const veProveedores = usePuede('proveedor:ver');
+  const veCompras = usePuede('compra:ver');
 
   const salir = useMutation({
     mutationFn: cerrarSesion,
@@ -102,11 +103,14 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
         </header>
 
         <nav className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-          <ul className="mx-auto flex max-w-5xl gap-1 px-2">
+          {/* overflow-x-auto: con cinco pestañas, en un celular no entran
+              todas; se desplazan de costado en lugar de romper la página. */}
+          <ul className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-2">
             {[
               { a: '/', texto: 'Inicio' },
               { a: '/stock', texto: 'Stock' },
               { a: '/insumos', texto: 'Insumos' },
+              ...(veCompras ? [{ a: '/compras', texto: 'Compras' }] : []),
               ...(veProveedores ? [{ a: '/proveedores', texto: 'Proveedores' }] : []),
             ].map((item) => (
               <li key={item.a}>
@@ -115,7 +119,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
                   to={item.a}
                   end={item.a === '/'}
                   className={({ isActive }) =>
-                    `flex min-h-12 items-center border-b-2 px-4 font-medium transition ${
+                    `flex min-h-12 items-center border-b-2 px-4 font-medium whitespace-nowrap transition ${
                       isActive
                         ? 'border-corteza dark:border-corteza-claro text-corteza dark:text-corteza-claro'
                         : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-50'

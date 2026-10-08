@@ -489,56 +489,78 @@ _Lo importante:_ al cerrarse, ese documento **llamaría al mismo servicio de aju
 
 ---
 
-### 3.7 Compras: orden y recepción _(Fase 8)_
+### 3.7 Compras: orden y recepción _(Fase 8)_ ✅
 
-Dos documentos distintos porque son dos hechos distintos: **pedir** no mueve stock, **recibir** sí.
+Dos documentos distintos porque son dos hechos distintos: **pedir** no mueve stock, **recibir** sí. La nota completa está en `docs/aprendizaje/16-fase-8-compras-y-costo-promedio.md`.
+
+> **Cambios respecto del diseño original**, por las respuestas del cliente: sin IVA (C-11: no hay `iva_porcentaje` en ninguna línea y `empresa.costo_incluye_iva` queda sin usar); estado `CERRADA` para "lo que falta no va a llegar"; la orden nace `PEDIDA` o en `BORRADOR`; plantillas de pedidos recurrentes; `fecha_entrega_estimada` es un `date` y no un `timestamptz`; los totales se calculan, no se guardan.
 
 #### `orden_compra`
 
-| Campo                             | Tipo             | Notas                                                              |
-| --------------------------------- | ---------------- | ------------------------------------------------------------------ |
-| `id`, `empresa_id`                | uuid             |                                                                    |
-| `sucursal_id`                     | uuid → sucursal  | La que va a recibir.                                               |
-| `proveedor_id`                    | uuid → proveedor |                                                                    |
-| `numero`                          | int              | Secuencial por empresa (ver 3.9).                                  |
-| `estado`                          | enum             | `BORRADOR` \| `ENVIADA` \| `PARCIAL` \| `RECIBIDA` \| `CANCELADA`. |
-| `fecha`, `fecha_entrega_estimada` | timestamptz      |                                                                    |
-| `usuario_id`                      | uuid             | Quién la hizo.                                                     |
-| `total_estimado`                  | numeric(18,4)    |                                                                    |
-| `notas`                           | text             |                                                                    |
+| Campo                       | Tipo                  | Notas                                                                                                           |
+| --------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `id`, `empresa_id`          | uuid                  |                                                                                                                 |
+| `sucursal_id`               | uuid → sucursal       | La que va a recibir.                                                                                            |
+| `proveedor_id`              | uuid → proveedor      |                                                                                                                 |
+| `numero`                    | int                   | Correlativo por empresa (ver 3.9). `UNIQUE (empresa_id, numero)`.                                               |
+| `estado`                    | enum                  | `BORRADOR` \| `PEDIDA` \| `PARCIAL` \| `RECIBIDA` \| `CERRADA` \| `CANCELADA`. Ver la máquina de estados abajo. |
+| `fecha_entrega_estimada`    | **date**, nullable    | Un día de calendario ("llega el jueves"), no un instante (C-8).                                                 |
+| `pedida_at`                 | timestamptz, nullable | Null mientras es borrador. Un `CHECK` lo exige en todo lo que salió del borrador.                               |
+| `cerrada_at`, `nota_cierre` | timestamptz, text     | Solo en `CERRADA` y `CANCELADA` (también con `CHECK`).                                                          |
+| `usuario_id`, `notas`       |                       |                                                                                                                 |
 
 #### `linea_orden_compra`
 
-`id`, `orden_compra_id`, `insumo_id`, `presentacion_id` (nullable), `cantidad_presentacion`, `factor_conversion` (snapshot), `cantidad_base` (= cantidad × factor), `precio_unitario` (por presentación), `iva_porcentaje` (nullable).
+`id`, `empresa_id`, `orden_compra_id`, `insumo_id`, `presentacion_id` (nullable = unidad base), `cantidad` (en presentaciones), `factor_conversion` (snapshot), `cantidad_base` (= cantidad × factor), `precio_unitario` (por presentación, **nullable**: se puede pedir sin saber el precio, C-9). `UNIQUE (orden_compra_id, insumo_id)`.
 
-> **No** guardamos `cantidad_recibida` acá. Lo pendiente se calcula: `cantidad_base` menos la suma de las recepciones de esa línea. Misma filosofía que el stock: un solo lugar con la verdad. Si en el futuro la consulta pesa, se agrega como caché **con** una función que la reconstruya.
+> **No** hay `cantidad_recibida`. Lo pendiente se calcula: `cantidad_base` menos la suma de las líneas de recepciones **CONFIRMADAS**. Las anuladas no suman, y eso es lo que hace que anular "reabra" la orden sola.
+
+#### La máquina de estados
+
+```
+crear ──► BORRADOR ──pedir──► PEDIDA ──recibir parte──► PARCIAL ──recibir resto──► RECIBIDA
+  └──────(o directo)──────────►  │                        │
+                                 └──cancelar──► CANCELADA └──cerrar──► CERRADA (con faltante)
+```
+
+`PEDIDA`, `PARCIAL` y `RECIBIDA` **no las elige nadie**: se calculan de lo recibido. Las acciones permitidas por estado son una tabla en `shared/dominio/compras.ts`; la API manda en el detalle la lista `acciones` y la pantalla muestra solo esos botones. Editar, además, exige que la orden no tenga ninguna recepción (ni anulada).
 
 #### `recepcion_compra`
 
-| Campo                                              | Tipo               | Notas                                                   |
-| -------------------------------------------------- | ------------------ | ------------------------------------------------------- |
-| `id`, `empresa_id`, `sucursal_id`                  | uuid               |                                                         |
-| `proveedor_id`                                     | uuid → proveedor   |                                                         |
-| `orden_compra_id`                                  | uuid, **nullable** | Null = recepción directa sin orden previa (decisión 5). |
-| `numero`                                           | int                |                                                         |
-| `fecha`                                            | timestamptz        |                                                         |
-| `numero_remito`, `numero_factura`                  | text, nullable     | Para cruzar con el papel que trajo el repartidor.       |
-| `estado`                                           | enum               | `CONFIRMADA` \| `ANULADA`.                              |
-| `total`                                            | numeric(18,4)      |                                                         |
-| `usuario_id`                                       | uuid               |                                                         |
-| `anulada_at`, `anulada_por_id`, `motivo_anulacion` |                    |                                                         |
+| Campo                                              | Tipo               | Notas                                                              |
+| -------------------------------------------------- | ------------------ | ------------------------------------------------------------------ |
+| `id`, `empresa_id`, `sucursal_id`, `proveedor_id`  | uuid               |                                                                    |
+| `orden_compra_id`                                  | uuid, **nullable** | Null = recepción directa sin orden previa (decisión 5).            |
+| `numero`                                           | int                | Correlativo por empresa.                                           |
+| `fecha`                                            | timestamptz        | Cuándo llegó.                                                      |
+| `numero_remito`, `numero_factura`                  | text, nullable     | Para cruzar con el papel que trajo el repartidor.                  |
+| `estado`                                           | enum               | `CONFIRMADA` \| `ANULADA`. No tiene borrador: lo que llegó, llegó. |
+| `operacion_id`                                     | uuid               | El de los movimientos `COMPRA` que escribió.                       |
+| `anulada_at`, `anulada_por_id`, `motivo_anulacion` |                    | Van juntos o no van (`CHECK`).                                     |
 
 #### `linea_recepcion_compra`
 
-`id`, `recepcion_compra_id`, `linea_orden_compra_id` (nullable), `insumo_id`, `presentacion_id` (nullable), `cantidad_presentacion`, `factor_conversion`, `cantidad_base`, `precio_unitario`, `iva_porcentaje`, `costo_unitario_base` (= precio ÷ factor, con o sin IVA según `empresa.costo_incluye_iva`).
+`id`, `empresa_id`, `recepcion_compra_id`, `linea_orden_compra_id` (nullable), `insumo_id`, `presentacion_id`, `cantidad`, `factor_conversion`, `cantidad_base`, `precio_unitario` (**obligatorio**, C-7), `costo_unitario_base` (= precio ÷ factor: $25.000 / 25 kg = $1.000/kg). El total de la recepción se calcula.
+
+#### `plantilla_pedido` y `linea_plantilla_pedido`
+
+Pedido recurrente con nombre ("Pedido semanal Molino"): proveedor, sucursal, notas, `activa`, y líneas con insumo, presentación y cantidad. **Sin precios** (con inflación estarían viejos a la segunda semana: al usarla se sugiere el último precio pagado). No se gasta al usarla.
+
+#### En `insumo` y en `movimiento_stock`
+
+- `insumo.costo_promedio` (numeric(18,4), nullable): el CPP de toda la empresa. **Valor derivado:** se reconstruye, nunca se edita.
+- `movimiento_stock.recepcion_compra_id`: el documento que originó la compra (o su reversa). `CHECK`: un `COMPRA` siempre tiene recepción **y** costo.
+- `movimiento_stock.costo_unitario` ahora se llena siempre que se sepa: el costo real en las compras, el promedio del momento (congelado) en todo lo demás.
 
 **Qué pasa al confirmar una recepción (todo en UNA transacción):**
 
-1. Un movimiento `COMPRA` positivo por cada línea, con su `costo_unitario`.
-2. Recálculo del **costo promedio ponderado** del insumo.
-3. Actualización del estado de la orden: `PARCIAL` si falta, `RECIBIDA` si está completa.
-4. Actualización de `ultimo_precio` y `ultimo_precio_at` en `proveedor_insumo`.
-5. Registro de auditoría.
+1. Número de documento (candado del contador).
+2. La recepción y sus líneas.
+3. Un movimiento `COMPRA` positivo por línea, con su costo, **por el motor**.
+4. Reconstrucción del **costo promedio ponderado** de cada insumo.
+5. Si tiene orden: no se recibe más de lo pendiente (leído con el candado de la orden) y se recalcula el estado.
+6. Actualización de `ultimo_precio` y `ultimo_precio_at` en `proveedor_insumo` (C-7). Si no existía la asociación, se crea. Una recepción con fecha vieja no pisa un precio más nuevo.
+7. Auditoría.
 
 **El costo promedio ponderado, con números:**
 
@@ -549,9 +571,11 @@ Llegan 50 kg a $1.300/kg           → valor que entra   =  $65.000
 nuevo promedio = (100.000 + 65.000) / (100 + 50) = 165.000 / 150 = $1.100/kg
 ```
 
-Las salidas (consumo, merma) se valorizan a ese promedio **del momento**, y ese número queda congelado en `movimiento_stock.costo_unitario`.
-**Decisión:** el costo promedio es **por empresa**, no por sucursal (una sola cifra por insumo). Es más simple y en este negocio la mercadería va de la central a la sucursal al costo. Está anotado en los riesgos como algo a revisar.
-**Al anular una recepción** no "deshacemos" el promedio con una resta (la fórmula del promedio no es reversible sin perder precisión): se escriben los movimientos inversos y después se **reconstruye** el costo promedio recorriendo los movimientos del insumo con la función `recalcularCostoPromedio(insumoId)`. Es exacto, es testeable y sirve además como herramienta de reparación.
+Las cuatro reglas: solo las compras mueven el promedio; el stock sin costo (saldo inicial) toma el precio de la primera compra (decisión del cliente); sin stock o en negativo, el precio nuevo manda; una compra anulada y su reversa se saltean las dos.
+**Decisión:** el costo promedio es **por empresa**, no por sucursal. Está anotado en los riesgos como algo a revisar.
+**Al anular una recepción** se escriben las reversas, la recepción queda `ANULADA`, y se **reconstruyen** el costo promedio (`recalcularCostoPromedio`), el último precio del proveedor y el estado de la orden. Una `COMPRA` **no** se puede anular desde el historial de movimientos: solo desde su recepción.
+
+**El orden de los candados** (para que no haya abrazos mortales): recepción → orden → contador → `insumo_sucursal` → `insumo` (con `FOR NO KEY UPDATE`, ver la nota 16) → `proveedor_insumo`.
 
 ---
 
@@ -584,7 +608,9 @@ _Test clave de esta fase:_ la suma del stock de las dos sucursales antes y despu
 
 `empresa_id` + `tipo_documento` (clave primaria compuesta), `ultimo_numero` (int).
 
-_Por qué una tabla y no `MAX(numero) + 1`:_ si dos usuarios confirman una recepción en el mismo instante, los dos leen el mismo máximo y generan el mismo número. La solución es bloquear la fila del contador dentro de la transacción (`SELECT ... FOR UPDATE`), incrementar y seguir: el segundo usuario espera unos milisegundos y obtiene el número siguiente. Es tu primera lección concreta de **concurrencia**, y el mismo patrón protege el stock negativo.
+_Por qué una tabla y no `MAX(numero) + 1`:_ si dos usuarios confirman una recepción en el mismo instante, los dos leen el mismo máximo y generan el mismo número. La solución es bloquear la fila del contador dentro de la transacción, incrementar y seguir: el segundo usuario espera unos milisegundos y obtiene el número siguiente.
+
+**Implementado (Fase 8)** con una sola sentencia, `INSERT ... ON CONFLICT DO UPDATE SET ultimo_numero = ultimo_numero + 1 RETURNING ultimo_numero`: crea la fila la primera vez, incrementa las siguientes, y el `UPDATE` deja la fila bloqueada hasta el commit. Si la transacción falla, el incremento se deshace: no quedan huecos. Tipos: `ORDEN_COMPRA`, `RECEPCION_COMPRA` (la Fase 9 agrega `TRANSFERENCIA`).
 
 ---
 
@@ -962,37 +988,49 @@ Dos consecuencias lindas de ese diseño:
 
 ---
 
-### Fase 8 — Compras: orden, recepción y costo promedio
+### Fase 8 — Compras: orden, recepción y costo promedio ✅
 
 **Objetivo:** registrar lo que se le pide al proveedor, recibirlo (total o parcial) y que eso sume stock con su costo.
 
-**Tareas**
+**Decisiones del cliente al arrancar la fase (8 de octubre de 2026):**
 
-1. Tablas `contador_documento`, `orden_compra`, `linea_orden_compra`, `recepcion_compra`, `linea_recepcion_compra`.
-2. Numeración por empresa con bloqueo de fila dentro de la transacción.
-3. Orden de compra: crear en `BORRADOR`, editar, enviar, cancelar. Las líneas se cargan en **presentación** (4 bolsas) y el sistema calcula y guarda la cantidad base (100 kg) con el factor snapshot. Precio sugerido desde `proveedor_insumo`.
-4. Recepción: con orden (trae las líneas pendientes precargadas y permite recibir menos) o **directa** sin orden. Campos de remito y factura.
-5. Al confirmar, **en una transacción**: movimientos `COMPRA` → `recalcularCostoPromedio(insumo)` → nuevo estado de la orden (`PARCIAL`/`RECIBIDA`) → actualizar `ultimo_precio` del proveedor → auditoría.
-6. Anulación de recepción: movimientos inversos + reconstrucción del costo promedio + reapertura del estado de la orden.
-7. Función `recalcularCostoPromedio(insumoId)` que reconstruye el promedio recorriendo los movimientos (sirve de reparación y hace la anulación exacta).
-8. Front: listado de órdenes con su estado, formulario de orden, pantalla de recepción (con "recibir todo" y edición línea por línea), vista de pendientes de recibir.
-9. **Tests:** cálculo del CPP con el ejemplo numérico de la sección 3.7; recepción parcial y luego total; recepción directa sin orden; anular y verificar que stock **y** costo promedio vuelven al valor previo; dos recepciones simultáneas no repiten el número de documento.
+| Pregunta                                            | Respuesta                                                                                                                              |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| ¿Quién registra una recepción?                      | **El dueño y el encargado** (en sus sucursales): el camión llega aunque el dueño no esté. Pedir y anular siguen siendo solo del dueño. |
+| ¿Qué pasa con lo que nunca llega?                   | **Se cierra con faltante** (`CERRADA`): deja de figurar como pendiente y queda registrado cuánto faltó.                                |
+| ¿La orden pasa por borrador?                        | **Las dos cosas:** nace pedida en el momento, o queda en borrador. Y además **plantillas** con nombre para los pedidos recurrentes.    |
+| ¿Cómo se valúa el saldo inicial cargado sin precio? | **Toma el precio de la primera compra.**                                                                                               |
 
-**Qué vas a aprender:** documentos con **máquina de estados** y transiciones válidas; recepción parcial (el problema de "lo pedido vs lo recibido"); numeración concurrente; **costo promedio ponderado** y por qué el costo se congela en cada movimiento; por qué un valor derivado necesita siempre una función que lo reconstruya.
+**Lo que se hizo**
 
-**Terminado cuando:**
+1. Tablas `contador_documento`, `orden_compra`, `linea_orden_compra`, `recepcion_compra`, `linea_recepcion_compra`, `plantilla_pedido`, `linea_plantilla_pedido`; `insumo.costo_promedio`; `movimiento_stock.recepcion_compra_id`. Una migración con 16 `CHECK` agregados a mano. Cuatro se verificaron insertando filas imposibles (compra sin recepción, orden pedida sin fecha, borrador con cierre, costo negativo); el de la compra, además, lo ejercita el test que compara el `CHECK` del signo con TypeScript.
+2. Numeración por empresa con un `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`.
+3. Orden de compra con su máquina de estados: crear (pedida o borrador), editar (sin recepciones), pedir, cancelar, cerrar con faltante. Líneas en **presentación** con el factor snapshot.
+4. Recepción con orden (precarga lo pendiente, "llegó todo", corrige cantidad y precio) o **directa**. Remito y factura.
+5. Al confirmar, en una transacción: movimientos `COMPRA` por el motor → costo promedio reconstruido → estado de la orden → último precio del proveedor → auditoría.
+6. Anulación de recepción: reversas + costo promedio + último precio + estado de la orden. Pide `forzar` si la mercadería ya se usó.
+7. `calcularCostoPromedio` (función pura) y `recalcularCostoPromedio` (la que la aplica con el candado del insumo).
+8. El motor congela el costo en cada movimiento (compras: el real; salidas: el promedio del momento).
+9. Comparación de precios entre proveedores por unidad base (C-6), en "quién me lo provee".
+10. Front: Compras (órdenes pendientes / todas, recepciones), orden nueva y editada con precarga desde el proveedor, detalle con acciones de la máquina de estados, recibir, recepción sin orden, detalle de recepción con anulación, plantillas, costo promedio en la ficha del insumo, remito en el historial.
+11. **Tests:** 45 unitarios del dominio y los esquemas de compras (más 3 de fechas y 1 de permisos), 40 de integración de compras (incluida la concurrencia) y 5 casos nuevos de aislamiento.
 
-- Creo una orden de 10 bolsas de harina, recibo 4 → el stock sube 100 kg y la orden queda `PARCIAL` mostrando 6 pendientes.
-- Recibo las 6 restantes → `RECIBIDA`, sin pendientes.
-- El costo promedio del insumo cambia exactamente como dice el ejemplo de 3.7 (está en un test).
-- Registro una recepción directa sin orden y suma stock igual.
-- Anulo una recepción → el stock y el costo promedio vuelven al valor anterior (hay un test que lo afirma).
-- El historial del insumo muestra la compra con el número de remito.
-- Si el precio por bolsa es $25.000 y la bolsa trae 25 kg, el costo unitario queda en $1.000/kg.
+**Terminado cuando** — repasado punto por punto:
 
-**Fuera de esta fase:** pagos, cuenta corriente del proveedor, facturación electrónica, devoluciones al proveedor (anotado como mejora futura).
+- ✅ Creo una orden de 10 bolsas de harina, recibo 4 → el stock sube 100 kg y la orden queda `PARCIAL` mostrando 6 pendientes. _(test + API corriendo: saldo 0 → 100, `PARCIAL`, faltan 6)_
+- ✅ Recibo las 6 restantes → `RECIBIDA`, sin pendientes. _(saldo 250, `RECIBIDA`, faltan 0)_
+- ✅ El costo promedio del insumo cambia exactamente como dice el ejemplo de 3.7. _(test unitario y de integración: 1.000 → 1.100)_
+- ✅ Registro una recepción directa sin orden y suma stock igual. _(125 kg: saldo 250 → 375)_
+- ✅ Anulo una recepción → el stock y el costo promedio vuelven al valor anterior. _(375 → 250 y $1.200 → $1.000, con test)_
+- ✅ El historial del insumo muestra la compra con el número de remito.
+- ✅ Si el precio por bolsa es $25.000 y la bolsa trae 25 kg, el costo unitario queda en $1.000/kg.
+- ✅ (agregado) Dos recepciones simultáneas no repiten el número; dos recepciones de lo que falta no reciben de más; dos anulaciones simultáneas del mismo insumo no se traban. Los tres tests se comprobaron **rompiendo el código a propósito**.
 
-**Commit sugerido:** `feat(compras): órdenes, recepciones parciales y costo promedio ponderado`
+**Qué aprendiste:** documentos con máquina de estados; lo pendiente se calcula; numeración concurrente; costo promedio ponderado y por qué se reconstruye; por qué el costo se congela en cada movimiento; los candados de las claves foráneas y `FOR NO KEY UPDATE`; un día no es un instante.
+
+**Fuera de esta fase:** pagos, cuenta corriente del proveedor, facturación electrónica, IVA (C-11), devoluciones al proveedor (C-12).
+
+**Commits:** `feat(compras): órdenes, recepciones parciales y costo promedio (API)` y `feat(compras): pantallas de órdenes, recepciones y plantillas`.
 
 ---
 
@@ -1192,10 +1230,10 @@ Fuentes: [MGC Distribuidora](https://distribuidoramgc.com.ar/) · [Alsedo Lorenz
 
 | Qué                                                                                                                                                                                                                           | De dónde sale  | Cuándo                                      |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------- |
-| **Comparar precios entre proveedores** del mismo insumo: marcar el más barato y el más caro en el panel "quién me lo provee".                                                                                                 | C-6            | Fase 8 (cuando el precio se actualice solo) |
-| **`fecha_entrega_estimada`** en la orden de compra, y aviso cuando pasó la fecha y no llegó.                                                                                                                                  | C-8            | Fase 8                                      |
+| ~~**Comparar precios entre proveedores**~~ **HECHO (Fase 8)**: "más barato" / "más caro" por unidad base en "quién me lo provee".                                                                                             | C-6            | Fase 8 (cuando el precio se actualice solo) |
+| ~~**`fecha_entrega_estimada`**~~ **HECHO (Fase 8)**: la orden pedida con la fecha vencida aparece "atrasada".                                                                                                                 | C-8            | Fase 8                                      |
 | **El IVA sale del alcance.** No tocar `costo_incluye_iva`; el costo es lo que pagó.                                                                                                                                           | C-11           | ya                                          |
-| **Permisos de compra solo para `DUENO`.**                                                                                                                                                                                     | C-13           | Fase 8                                      |
+| ~~**Permisos de compra solo para `DUENO`**~~ **HECHO (Fase 8)**: pedir y anular, solo el dueño; recibir, también el encargado (decisión del cliente).                                                                         | C-13           | Fase 8                                      |
 | **El consumo automático por recetas es la expectativa número uno del cliente.** Hay que decírselo explícitamente: en esta etapa el consumo se carga a mano, y el módulo de producción va a usar el mismo motor sin cambiarlo. | C-14           | fuera de esta etapa                         |
 | **"Hasta qué hora es hoy"** configurable por empresa (hoy se resuelve con la fecha editable).                                                                                                                                 | C-17           | Fase 11                                     |
 | ~~**Modo claro y modo oscuro elegibles**~~ **HECHO**: selector de tres opciones (claro / oscuro / automático) en el encabezado y en el login, recordado en `localStorage`.                                                    | pedido directo | ver abajo ⬇️                                |

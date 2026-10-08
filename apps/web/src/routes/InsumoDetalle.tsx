@@ -37,6 +37,7 @@ import {
   obtenerInsumo,
 } from '../lib/catalogo';
 import { aplicarErroresDelServidor } from '../lib/erroresFormulario';
+import { obtenerCostoInsumo } from '../lib/compras';
 import { actualizarAsociacion, listarProveedoresDeInsumo } from '../lib/proveedores';
 
 /**
@@ -636,8 +637,9 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
     <Tarjeta titulo="Quién me lo provee">
       <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
         El <strong>preferido</strong> es el que se va a sugerir cuando este insumo aparezca en la
-        lista de reposición.
+        lista de reposición. El precio se actualiza solo con cada recepción.
       </p>
+      <CostoPromedio insumoId={insumoId} unidad={unidad} />
 
       {consulta.isPending && (
         <p className="text-sm text-slate-600 dark:text-slate-400">Cargando proveedores...</p>
@@ -686,6 +688,19 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
                 </span>
               )}
 
+              {/* C-6: el más barato y el más caro, comparando POR UNIDAD BASE
+                  (lo decide la API; acá solo se pinta). */}
+              {fila.comparacion === 'MAS_BARATO' && (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                  más barato
+                </span>
+              )}
+              {fila.comparacion === 'MAS_CARO' && (
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-950/60 dark:text-red-300">
+                  más caro
+                </span>
+              )}
+
               <span className="ml-auto text-right">
                 {fila.ultimoPrecio === null ? (
                   <span className="text-sm text-slate-600 dark:text-slate-400">sin precio</span>
@@ -694,6 +709,11 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
                     <span className="font-semibold tabular-nums">
                       {formatearDinero(fila.ultimoPrecio)}
                     </span>
+                    {fila.presentacion !== null && fila.costoBase !== null && (
+                      <span className="block text-xs text-slate-600 dark:text-slate-400">
+                        {formatearDinero(fila.costoBase)} por {unidad}
+                      </span>
+                    )}
                     {fila.ultimoPrecioAt !== null && (
                       <span className="block text-xs text-slate-600 dark:text-slate-400">
                         {formatearFechaArgentina(new Date(fila.ultimoPrecioAt))}
@@ -723,5 +743,32 @@ function ProveedoresDelInsumo({ insumoId, unidad }: { insumoId: string; unidad: 
         </ul>
       )}
     </Tarjeta>
+  );
+}
+
+/**
+ * El costo promedio ponderado del insumo (Fase 8).
+ *
+ * Lleva su propio permiso (`compra:ver`): es plata. Si no lo tiene, no se
+ * pide el dato y no se dibuja nada.
+ */
+function CostoPromedio({ insumoId, unidad }: { insumoId: string; unidad: string }) {
+  const puedeVer = usePuede('compra:ver');
+  const costo = useQuery({
+    queryKey: ['costo', insumoId],
+    queryFn: () => obtenerCostoInsumo(insumoId),
+    enabled: puedeVer,
+  });
+  if (!puedeVer || !costo.data) return null;
+
+  return (
+    <p className="mb-4 rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800/60">
+      Costo promedio:{' '}
+      <strong className="tabular-nums">
+        {costo.data.costoPromedio === null
+          ? 'sin costo todavía (no hubo ninguna compra)'
+          : `${formatearDinero(costo.data.costoPromedio)} por ${unidad}`}
+      </strong>
+    </p>
   );
 }

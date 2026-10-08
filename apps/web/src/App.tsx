@@ -7,8 +7,14 @@ import { InsumoNuevo } from './routes/InsumoNuevo';
 import { Insumos } from './routes/Insumos';
 import { AjustarStock } from './routes/AjustarStock';
 import { CargarMovimiento } from './routes/CargarMovimiento';
+import { Compras } from './routes/Compras';
+import { FormularioCompra } from './routes/FormularioCompra';
 import { HistorialInsumo } from './routes/HistorialInsumo';
 import { Login } from './routes/Login';
+import { OrdenDetalle } from './routes/OrdenDetalle';
+import { Plantillas } from './routes/Plantillas';
+import { RecepcionDetalle } from './routes/RecepcionDetalle';
+import { RecibirOrden } from './routes/RecibirOrden';
 import { ProveedorDetalle } from './routes/ProveedorDetalle';
 import { ProveedorNuevo } from './routes/ProveedorNuevo';
 import { Proveedores } from './routes/Proveedores';
@@ -47,6 +53,24 @@ export function App() {
         <Route path="/stock/saldo-inicial" element={<CargarMovimiento clase="SALDO_INICIAL" />} />
         <Route path="/stock/ajuste" element={<AjustarStock />} />
         <Route path="/stock/:insumoId" element={<HistorialInsumo />} />
+
+        {/* Compras. Las rutas fijas (nueva, plantillas) van antes que :id. */}
+        <Route path="/compras" element={<Compras />} />
+        <Route path="/compras/nueva" element={<FormularioCompra modo="orden-nueva" />} />
+        <Route path="/compras/plantillas" element={<Plantillas />} />
+        <Route
+          path="/compras/plantillas/nueva"
+          element={<FormularioCompra modo="plantilla-nueva" />}
+        />
+        <Route
+          path="/compras/plantillas/:id"
+          element={<FormularioCompra modo="plantilla-editar" />}
+        />
+        <Route path="/compras/:id" element={<OrdenDetalle />} />
+        <Route path="/compras/:id/editar" element={<FormularioCompra modo="orden-editar" />} />
+        <Route path="/compras/:id/recibir" element={<RecibirOrden />} />
+        <Route path="/recepciones/nueva" element={<FormularioCompra modo="recepcion" />} />
+        <Route path="/recepciones/:id" element={<RecepcionDetalle />} />
       </Route>
 
       {/* Cualquier URL que no exista vuelve al inicio. */}
