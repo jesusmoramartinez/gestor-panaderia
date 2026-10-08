@@ -94,6 +94,7 @@ Estas palabras se usan **en español en el código** (tablas, campos, tipos, fun
 | Tests             | **Vitest**                           | Obligatorio en la lógica de stock y conversiones.                                                           |
 | Sesiones          | **cookie httpOnly + tabla `sesion`** | Sin JWT: la sesión se puede revocar. Token aleatorio, guardado hasheado con SHA-256.                        |
 | Contraseñas       | **`crypto.scrypt`** (nativo)         | Sin dependencias. Los parámetros de costo viajan dentro del hash.                                           |
+| Decimales         | **`decimal.js`**                     | La misma librería que Prisma empaqueta. El tipo `Numerico = Decimal \| string` NO acepta `number`.          |
 
 ---
 

@@ -19,6 +19,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "decimal.js": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

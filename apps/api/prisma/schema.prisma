@@ -52,6 +52,7 @@ model Empresa {
   sucursales Sucursal[]
   usuarios   Usuario[]
   auditorias Auditoria[]
+  unidades   UnidadMedida[]
 
   @@map("empresa")
 }
@@ -240,4 +241,48 @@ model Auditoria {
   @@index([empresaId, createdAt])
   @@index([entidad, entidadId])
   @@map("auditoria")
+}
+
+/// Familia de unidades. Solo se convierte DENTRO de una misma dimensión:
+/// no existe conversión entre PESO y VOLUMEN porque dependería de la densidad
+/// del material (1 litro de agua pesa 1 kg; de aceite, ~0,92 kg).
+enum DimensionUnidad {
+  PESO
+  VOLUMEN
+  UNIDAD
+
+  @@map("dimension_unidad")
+}
+
+/// Catálogo de unidades de medida.
+///
+/// Cada empresa tiene el suyo: el seed carga las básicas (kg, g, l, ml, u) y
+/// mañana una panadería podría agregar la que necesite.
+model UnidadMedida {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId String          @map("empresa_id") @db.Uuid
+  /// Corto, es lo que se ve en los formularios: kg, g, l, ml, u.
+  codigo    String
+  nombre    String
+  dimension DimensionUnidad
+
+  /// Cuánto vale 1 de esta unidad expresado en la unidad BASE de su dimensión.
+  /// kg = 1, g = 0.001. Con 10 decimales: un factor con poca precisión
+  /// arrastraría el error a todas las cantidades convertidas.
+  factorABase Decimal @map("factor_a_base") @db.Decimal(20, 10)
+
+  /// La unidad de referencia de su dimensión (factor 1). Hay una sola por
+  /// dimensión y por empresa; lo garantiza un índice único parcial que se
+  /// agregó a mano en la migración.
+  esBase Boolean @default(false) @map("es_base")
+  activa Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@map("unidad_medida")
 }

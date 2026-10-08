@@ -5,6 +5,7 @@ import { AppError, describirError } from './lib/errores.js';
 import { auditoriaRouter } from './modules/auditoria/routes.js';
 import { authRouter } from './modules/auth/routes.js';
 import { healthRouter } from './modules/health/routes.js';
+import { unidadesRouter } from './modules/unidades/routes.js';
 import { usuariosRouter } from './modules/usuarios/routes.js';
 
 /**
@@ -30,6 +31,7 @@ export function crearApp(): Express {
   app.use('/api', authRouter);
   app.use('/api', usuariosRouter);
   app.use('/api', auditoriaRouter);
+  app.use('/api', unidadesRouter);
 
   // Cualquier otra ruta: 404 con la misma forma que el resto de los errores.
   app.use((_req, res) => {

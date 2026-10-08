@@ -17,6 +17,21 @@ import { hashearPassword } from '../src/lib/password.js';
  */
 export const PASSWORD_DEV = 'panaderia123';
 
+/**
+ * Las unidades de medida básicas. Son iguales para toda panadería, así que no
+ * forman parte de la definición de cada empresa: se cargan para todas.
+ *
+ * `factorABase` va como TEXTO, nunca como number: es el factor del que
+ * depende cada conversión del sistema.
+ */
+export const UNIDADES = [
+  { codigo: 'kg', nombre: 'Kilogramo', dimension: 'PESO', factorABase: '1', esBase: true },
+  { codigo: 'g', nombre: 'Gramo', dimension: 'PESO', factorABase: '0.001', esBase: false },
+  { codigo: 'l', nombre: 'Litro', dimension: 'VOLUMEN', factorABase: '1', esBase: true },
+  { codigo: 'ml', nombre: 'Mililitro', dimension: 'VOLUMEN', factorABase: '0.001', esBase: false },
+  { codigo: 'u', nombre: 'Unidad', dimension: 'UNIDAD', factorABase: '1', esBase: true },
+] as const;
+
 export type DefinicionSucursal = {
   codigo: string;
   nombre: string;
@@ -141,6 +156,19 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
           costoIncluyeIva: definicion.costoIncluyeIva,
         },
       });
+
+      for (const unidad of UNIDADES) {
+        await tx.unidadMedida.upsert({
+          where: { empresaId_codigo: { empresaId: empresa.id, codigo: unidad.codigo } },
+          create: { ...unidad, empresaId: empresa.id },
+          update: {
+            nombre: unidad.nombre,
+            dimension: unidad.dimension,
+            factorABase: unidad.factorABase,
+            esBase: unidad.esBase,
+          },
+        });
+      }
 
       const sucursalesPorCodigo = new Map<string, string>();
       for (const sucursal of definicion.sucursales) {

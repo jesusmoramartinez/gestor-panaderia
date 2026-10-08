@@ -1,4 +1,9 @@
-import type { EventoAuditoria, UsuarioResumen, UsuarioSesion } from '@panaderia/shared';
+import type {
+  EventoAuditoria,
+  UnidadMedida,
+  UsuarioResumen,
+  UsuarioSesion,
+} from '@panaderia/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { PASSWORD_DEV } from '../prisma/semilla.js';
@@ -21,7 +26,12 @@ import { ClienteHttp } from './cliente-http.js';
  */
 
 let api: ClienteHttp;
-let laferrere: { empresaId: string; sucursalCentralId: string; usuarioIds: string[] };
+let laferrere: {
+  empresaId: string;
+  sucursalCentralId: string;
+  usuarioIds: string[];
+  unidadIds: string[];
+};
 
 beforeAll(async () => {
   api = await ClienteHttp.levantar();
@@ -30,7 +40,7 @@ beforeAll(async () => {
   // usuario de la otra empresa NO tiene que poder ver ni usar.
   const empresa = await prisma.empresa.findFirstOrThrow({
     where: { nombre: 'Panadería Laferrere' },
-    include: { sucursales: true, usuarios: true },
+    include: { sucursales: true, usuarios: true, unidades: true },
   });
   const central = empresa.sucursales.find((s) => s.codigo === 'CEN');
   if (!central) throw new Error('falta la sucursal CEN en la semilla');
@@ -39,6 +49,7 @@ beforeAll(async () => {
     empresaId: empresa.id,
     sucursalCentralId: central.id,
     usuarioIds: empresa.usuarios.map((u) => u.id),
+    unidadIds: empresa.unidades.map((u) => u.id),
   };
 });
 
@@ -111,6 +122,22 @@ describe('aislamiento entre empresas', () => {
     expect(emails).not.toContain('dueno@panaderia.test');
     for (const id of laferrere.usuarioIds) {
       expect(JSON.stringify(eventos)).not.toContain(id);
+    }
+  });
+
+  it('el catálogo de unidades es de cada empresa', async () => {
+    // Las unidades tienen el mismo código en las dos empresas (kg, g, l...),
+    // así que es fácil asumir que son "las mismas". No lo son: cada empresa
+    // tiene su catálogo y sus ids, y mañana una podría agregar una unidad
+    // propia sin afectar a la otra.
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get('/api/unidades');
+    expect(r.status).toBe(200);
+
+    const lista = r.cuerpo as UnidadMedida[];
+    expect(lista).toHaveLength(5);
+    for (const id of laferrere.unidadIds) {
+      expect(lista.map((u) => u.id)).not.toContain(id);
     }
   });
 

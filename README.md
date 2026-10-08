@@ -4,7 +4,7 @@ Sistema web de gestión para una panadería con dos sucursales (una central que
 produce y abastece a la otra). Preparado para multi-empresa desde el diseño.
 
 **Etapa actual:** control de stock de materia prima (insumos).
-**Fase actual:** 2 — login, roles, aislamiento por empresa y auditoría. ✅
+**Fase actual:** 3 — unidades de medida y conversiones decimales. ✅
 
 | Documento                                | Para qué                                                                    |
 | ---------------------------------------- | --------------------------------------------------------------------------- |
