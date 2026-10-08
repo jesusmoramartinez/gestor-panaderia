@@ -276,23 +276,37 @@ function Fila({
         </p>
       )}
 
+      {movimiento.transferencia !== null && (
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          <Link to={`/transferencias/${movimiento.transferencia.id}`} className="underline">
+            Transferencia {movimiento.transferencia.numero}
+          </Link>
+          {` · ${movimiento.transferencia.origenNombre} → ${movimiento.transferencia.destinoNombre}`}
+        </p>
+      )}
+
       {movimiento.notas !== null && (
         <p className="mt-1 text-sm text-slate-600 italic dark:text-slate-300">
           «{movimiento.notas}»
         </p>
       )}
 
-      {/* Una COMPRA no se anula desde acá: se anula su recepción, que corrige
-          juntos el stock, la orden y el costo (la API también lo impide). */}
-      {puedeAnular && !anulado && movimiento.tipo !== 'REVERSA' && movimiento.tipo !== 'COMPRA' && (
-        <button
-          type="button"
-          onClick={onAnular}
-          className="mt-2 min-h-10 rounded-lg px-3 text-sm text-red-700 hover:underline dark:text-red-400"
-        >
-          Anular
-        </button>
-      )}
+      {/* Lo que nació de un documento se corrige desde el documento (la API
+          también lo impide): una COMPRA desde su recepción, y lo de una
+          transferencia, desde la transferencia. */}
+      {puedeAnular &&
+        !anulado &&
+        movimiento.tipo !== 'REVERSA' &&
+        movimiento.tipo !== 'COMPRA' &&
+        movimiento.transferencia === null && (
+          <button
+            type="button"
+            onClick={onAnular}
+            className="mt-2 min-h-10 rounded-lg px-3 text-sm text-red-700 hover:underline dark:text-red-400"
+          >
+            Anular
+          </button>
+        )}
     </li>
   );
 }

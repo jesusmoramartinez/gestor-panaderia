@@ -19,6 +19,9 @@ import { ProveedorDetalle } from './routes/ProveedorDetalle';
 import { ProveedorNuevo } from './routes/ProveedorNuevo';
 import { Proveedores } from './routes/Proveedores';
 import { Stock } from './routes/Stock';
+import { EnviarTransferencia } from './routes/EnviarTransferencia';
+import { TransferenciaDetalle } from './routes/TransferenciaDetalle';
+import { Transferencias } from './routes/Transferencias';
 
 /**
  * El mapa de pantallas de la aplicación.
@@ -71,6 +74,10 @@ export function App() {
         <Route path="/compras/:id/recibir" element={<RecibirOrden />} />
         <Route path="/recepciones/nueva" element={<FormularioCompra modo="recepcion" />} />
         <Route path="/recepciones/:id" element={<RecepcionDetalle />} />
+
+        <Route path="/transferencias" element={<Transferencias />} />
+        <Route path="/transferencias/nueva" element={<EnviarTransferencia />} />
+        <Route path="/transferencias/:id" element={<TransferenciaDetalle />} />
       </Route>
 
       {/* Cualquier URL que no exista vuelve al inicio. */}

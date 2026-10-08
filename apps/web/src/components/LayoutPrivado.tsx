@@ -109,6 +109,8 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
             {[
               { a: '/', texto: 'Inicio' },
               { a: '/stock', texto: 'Stock' },
+              // Sin permiso para VER: el empleado tiene que saber qué le llega.
+              { a: '/transferencias', texto: 'Transferencias' },
               { a: '/insumos', texto: 'Insumos' },
               ...(veCompras ? [{ a: '/compras', texto: 'Compras' }] : []),
               ...(veProveedores ? [{ a: '/proveedores', texto: 'Proveedores' }] : []),

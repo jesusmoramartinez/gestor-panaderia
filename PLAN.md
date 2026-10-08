@@ -579,26 +579,29 @@ Las cuatro reglas: solo las compras mueven el promedio; el stock sin costo (sald
 
 ---
 
-### 3.8 Transferencias entre sucursales _(Fase 9)_
+### 3.8 Transferencias entre sucursales _(Fase 9)_ ✅
 
 #### `transferencia`
 
-`id`, `empresa_id`, `sucursal_origen_id`, `sucursal_destino_id`, `numero`, `estado` (enum `ENVIADA` \| `RECIBIDA` \| `ANULADA`), `fecha_envio`, `fecha_recepcion` (nullable), `usuario_envio_id`, `usuario_recepcion_id` (nullable), `notas`.
-Restricción: `sucursal_origen_id <> sucursal_destino_id`, y las dos de la misma empresa.
+`id`, `empresa_id`, `sucursal_origen_id`, `sucursal_destino_id`, `numero` (correlativo por empresa), `estado` (enum `ENVIADA` \| `RECIBIDA` \| `ANULADA`), `notas`, `fecha_envio` + `usuario_envio_id` + `operacion_envio_id`, `fecha_recepcion` + `usuario_recepcion_id` + `operacion_recepcion_id` + `nota_recepcion` (null hasta recibir), `anulada_at` + `anulada_por_id` + `motivo_anulacion`.
+`CHECK`: origen ≠ destino; los datos de recepción y de anulación van juntos o no van; no se recibe antes de enviar. Que las dos sucursales sean de la misma empresa lo controla el servicio (un `CHECK` solo ve la fila).
 
 #### `linea_transferencia`
 
-`id`, `transferencia_id`, `insumo_id`, `cantidad_base_enviada`, `cantidad_base_recibida` (nullable hasta la recepción), `cantidad_ingresada` + `unidad_ingresada_id` + `factor_conversion`, `costo_unitario` (snapshot del costo al enviar).
+`id`, `empresa_id`, `transferencia_id`, `insumo_id`, `cantidad_ingresada` + `unidad_ingresada_id` + `factor_conversion` (lo que tipeó quien envió), `cantidad_base_enviada`, `cantidad_base_recibida` (null hasta recibir; `CHECK` entre 0 y lo enviado), `costo_unitario` (el promedio al enviar, congelado). `UNIQUE (transferencia_id, insumo_id)`.
+
+Y en `movimiento_stock`, `transferencia_id`, con un `CHECK`: todo `TRANSFERENCIA_*` tiene su transferencia.
 
 **El flujo, movimiento por movimiento:**
 
-- **Enviar** → `TRANSFERENCIA_SALIDA` (negativo) en el origen. La transferencia queda `ENVIADA`.
-- **Mientras está `ENVIADA`** → la mercadería está **en tránsito**: ya no está en el stock del origen y todavía no está en el del destino. Eso es correcto y es la realidad física (va en la camioneta). La pantalla "en tránsito" es simplemente la lista de transferencias en estado `ENVIADA`.
-- **Recibir** → `TRANSFERENCIA_ENTRADA` (positivo) en el destino, por la cantidad **realmente recibida**. Estado `RECIBIDA`.
-- **Si recibió menos de lo que salió** → se genera una `MERMA` en el **origen** con motivo _"Diferencia en transferencia"_. (**Pregunta C-18 al cliente:** ¿quién se come la diferencia? Lo dejamos configurable si hace falta.)
-- **Anular** → solo si está `ENVIADA`. Genera una `REVERSA` positiva en el origen que devuelve el stock. Una transferencia ya recibida no se anula: se corrige con una transferencia en sentido contrario.
+- **Enviar** (origen) → `TRANSFERENCIA_SALIDA` (negativo), por el motor: controla stock (o `forzar` con permiso) y congela el costo. Queda `ENVIADA`.
+- **Mientras está `ENVIADA`** → la mercadería está **en tránsito**: ya no está en el origen y todavía no está en el destino. La bandeja "en tránsito" es la lista de transferencias `ENVIADA`.
+- **Recibir** (destino) → `TRANSFERENCIA_ENTRADA` por lo **enviado** y, si llegó menos, una `MERMA` **en el destino** por la diferencia, con motivo _"Diferencia en transferencia"_ (decisión del cliente). Las dos al costo de la salida. Estado `RECIBIDA`.
+- **Anular** → solo si está `ENVIADA`, desde el origen: `REVERSA` de cada salida. Una recibida no se anula: se corrige con una transferencia en sentido contrario.
 
-_Test clave de esta fase:_ la suma del stock de las dos sucursales antes y después de una transferencia completa tiene que ser idéntica (salvo la merma declarada). Si no cuadra, hay un bug.
+> **Corrección del diseño original:** decía "merma en el **origen**". Con números: el origen ya bajó 20 al enviar; una merma de 2 ahí lo hacía bajar 22. Ver la nota 17.
+
+_Test clave:_ la suma del stock de las dos sucursales antes y después es idéntica, salvo exactamente la merma declarada.
 
 ---
 
@@ -1034,33 +1037,41 @@ Dos consecuencias lindas de ese diseño:
 
 ---
 
-### Fase 9 — Transferencias entre sucursales
+### Fase 9 — Transferencias entre sucursales ✅
 
 **Objetivo:** mover insumos de la central a la sucursal con confirmación del que recibe.
 
-**Tareas**
+**Decisiones del cliente al arrancar la fase (8 de octubre de 2026):**
 
-1. Tablas `transferencia` y `linea_transferencia`.
-2. `POST /api/transferencias` (envía: movimientos de salida en origen, estado `ENVIADA`, costo snapshot).
-3. `POST /api/transferencias/:id/recibir` (movimientos de entrada en destino por lo recibido; si falta, merma en origen con el motivo correspondiente; estado `RECIBIDA`).
-4. `POST /api/transferencias/:id/anular` (solo si está `ENVIADA`: reversa en origen).
-5. Validaciones: origen ≠ destino, misma empresa, el usuario puede operar en el origen para enviar y en el destino para recibir, stock suficiente en origen.
-6. Front: formulario de envío, bandeja "en tránsito" (pendientes de recibir, separando "salieron de acá" y "vienen para acá"), pantalla de recepción con cantidades editables, historial.
-7. **Tests:** el stock total de las dos sucursales se conserva (salvo merma declarada); recibir dos veces → 409; anular una recibida → 409; recibir menos genera la merma exacta; no se puede enviar más de lo que hay.
+| Pregunta                                                       | Respuesta                                                                                                                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Si llega menos de lo enviado, ¿cómo se registra la diferencia? | **Merma en el destino**: entra lo enviado y se registra una merma por la diferencia, con motivo "Diferencia en transferencia". |
+| C-20 y C-30 (sin responder): ¿misma empresa, al costo?         | **Sí**, se sigue con el supuesto: mismo CUIT, movimiento interno al costo.                                                     |
+| ¿Quién confirma la recepción?                                  | **El dueño y el encargado** de la sucursal que recibe (no el empleado).                                                        |
 
-**Qué vas a aprender:** operaciones que afectan dos ubicaciones y por qué conviene partirlas en dos hechos; el concepto de stock **en tránsito** (y por qué no "pertenece" a ninguna sucursal); idempotencia en un flujo de dos pasos hecho por dos personas distintas; permisos que dependen de la sucursal.
+**Lo que se hizo**
 
-**Terminado cuando:**
+1. Tablas `transferencia` y `linea_transferencia`; `movimiento_stock.transferencia_id`; `TRANSFERENCIA` en la numeración; motivo de merma "Diferencia en transferencia". Una migración con 9 `CHECK` (3 verificados a mano insertando filas imposibles: origen igual a destino, recibida sin datos de recepción, salida sin transferencia).
+2. `POST /api/transferencias` (enviar), `/:id/recibir`, `/:id/anular`, `GET /api/transferencias` (bandejas entrantes y salientes de una sucursal), `GET /api/transferencias/:id`, `GET /api/sucursales`.
+3. Validaciones: origen ≠ destino, las dos de la empresa, operar en el origen para enviar y anular y en el destino para recibir, stock suficiente (o `forzar`), cada línea recibida entre 0 y lo enviado, no recibir antes de enviar.
+4. Los movimientos de una transferencia no se anulan sueltos desde el historial.
+5. Front: bandejas "Vienen para acá" / "Salieron de acá" con lo en tránsito arriba, envío con "hay X kg" por insumo, detalle que muestra la recepción o la anulación según la sucursal activa, recepción con "llegó todo" y aviso en vivo de la merma, historial con la transferencia.
+6. **Tests:** 7 unitarios del dominio, 22 de integración (conservación y concurrencia incluidas) y 3 casos nuevos de aislamiento. **Más el recorrido completo en Chromium headless** con dos usuarios.
 
-- Transfiero 20 kg de Central a Sucursal → Central baja 20, Sucursal no cambia, la transferencia aparece "en tránsito" en las dos bandejas.
-- El encargado de la sucursal confirma 18 → Sucursal sube 18 y queda una merma de 2 en Central con motivo "Diferencia en transferencia".
-- Intentar recibirla de nuevo → 409.
-- Anular una ya recibida → 409; anular una enviada → el stock de Central vuelve.
-- El test de conservación del stock pasa.
+**Terminado cuando** — repasado punto por punto:
 
-**Fuera de esta fase:** remito imprimible, transferencias de productos terminados, pedidos internos de sucursal a central (anotado como mejora futura).
+- ✅ Transfiero 20 kg de Central a Sucursal → Central baja 20, Sucursal no cambia, y aparece "en tránsito" en las dos bandejas. _(test + navegador: Central 50 → 30, Laferrere 0)_
+- ✅ El encargado de la sucursal confirma 18 → Sucursal sube 18 y queda una merma de 2 ~~en Central~~ **en la Sucursal** con motivo "Diferencia en transferencia". _(test + navegador, con una encargada que solo opera en Laferrere)_
+- ✅ Intentar recibirla de nuevo → 409.
+- ✅ Anular una ya recibida → 409; anular una enviada → el stock de Central vuelve.
+- ✅ El test de conservación del stock pasa.
+- ✅ (agregado) Dos confirmaciones simultáneas: una entra y la otra 409; recibir y anular a la vez: gana una. Comprobado sacando el candado a propósito.
 
-**Commit sugerido:** `feat(transferencias): envío, recepción con diferencias y anulación`
+**Qué aprendiste:** una operación en dos lugares son dos hechos; el stock en tránsito; un ejemplo con números como revisión de diseño; permisos que dependen de la punta; **probar las pantallas en un navegador de verdad** (nota 17).
+
+**Fuera de esta fase:** remito imprimible, transferencias de productos terminados, pedidos internos de sucursal a central, mostrar "en camino" en la pantalla de stock del destino (anotado como mejora para la Fase 10).
+
+**Commits:** `feat(transferencias): envío, recepción con diferencias y anulación (API)` y `feat(transferencias): bandejas, envío y recepción`.
 
 ---
 
@@ -1337,7 +1348,7 @@ Fuentes: [MGC Distribuidora](https://distribuidoramgc.com.ar/) · [Alsedo Lorenz
 4. **Sesión en base vs JWT.** Si en el futuro hay app móvil o varios servidores, revisar (un JWT corto + refresh token en base es el paso siguiente natural).
 5. **Row Level Security de Postgres.** Es la defensa definitiva contra la fuga entre empresas. Hoy sería complejidad extra sobre un modelo que todavía está cambiando; vale la pena cuando haya clientes reales distintos.
 6. **Lotes y vencimientos** (decisión 1). Revisar con la respuesta a C-27; es el cambio más grande que puede venir.
-7. **Si las dos panaderías son dos CUIT distintos** (C-30), las transferencias dejan de ser movimientos internos. Revisar antes de la Fase 9.
+7. **Si las dos panaderías son dos CUIT distintos** (C-30), las transferencias dejan de ser movimientos internos. _Revisado al arrancar la Fase 9: se siguió con el supuesto (misma empresa, al costo). Si el cliente responde otra cosa, se revisa._
 
 ---
 
