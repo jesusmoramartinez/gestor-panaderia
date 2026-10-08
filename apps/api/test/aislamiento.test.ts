@@ -412,6 +412,52 @@ describe('aislamiento entre empresas', () => {
     }
   });
 
+  it('no se puede ajustar el stock de un insumo de otra empresa', async () => {
+    const vecina = await entrarComo('dueno@vecina.test');
+    const suSucursal = vecina.sucursales[0]?.id ?? '';
+    const suMotivo = await prisma.motivoMovimiento.findFirstOrThrow({
+      where: { empresa: { nombre: { contains: 'Vecina' } }, tipoAplicable: 'AJUSTE' },
+    });
+
+    // El ajuste es el camino más directo para tocar un saldo, así que es el
+    // que más vale probar: acá se intenta contra un insumo ajeno.
+    const r = await api.post('/api/movimientos/ajuste', {
+      sucursalId: suSucursal,
+      motivoId: suMotivo.id,
+      lineas: [{ insumoId: laferrere.harina000Id, cantidadContada: '999' }],
+    });
+
+    expect(r.status).toBe(400);
+    expect((r.cuerpo as { codigo: string }).codigo).toBe('DATOS_INVALIDOS');
+
+    const colados = await prisma.movimientoStock.count({
+      where: { insumoId: laferrere.harina000Id, empresaId: { not: laferrere.empresaId } },
+    });
+    expect(colados).toBe(0);
+  });
+
+  it('no se puede usar un motivo de otra empresa', async () => {
+    // El motivo viene en el cuerpo del pedido, así que es otro id que hay que
+    // verificar de a uno: el empresaId de la sesión no alcanza por sí solo.
+    const ajeno = await prisma.motivoMovimiento.findFirstOrThrow({
+      where: { empresaId: laferrere.empresaId, tipoAplicable: 'AJUSTE' },
+    });
+    const vecina = await entrarComo('dueno@vecina.test');
+    const suSucursal = vecina.sucursales[0]?.id ?? '';
+    const suInsumo = await prisma.insumo.findFirstOrThrow({
+      where: { empresa: { nombre: { contains: 'Vecina' } } },
+    });
+
+    const r = await api.post('/api/movimientos/ajuste', {
+      sucursalId: suSucursal,
+      motivoId: ajeno.id,
+      lineas: [{ insumoId: suInsumo.id, cantidadContada: '5' }],
+    });
+
+    expect(r.status).toBe(400);
+    expect((r.cuerpo as { detalles: Record<string, string> }).detalles['motivoId']).toBeDefined();
+  });
+
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {
     await entrarComo('dueno@vecina.test');
 

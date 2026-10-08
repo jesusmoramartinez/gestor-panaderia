@@ -1,5 +1,6 @@
 // CAPA 2 — CONTROLADOR: traduce entre HTTP y el servicio. Sin reglas de negocio.
 import {
+  AjustarStockSchema,
   AnularMovimientoSchema,
   CargarConsumoSchema,
   CargarMermaSchema,
@@ -31,6 +32,21 @@ export async function postConsumo(req: Request, res: Response): Promise<void> {
 export async function postMerma(req: Request, res: Response): Promise<void> {
   const entrada = parsear(CargarMermaSchema, req.body);
   res.status(201).json(await service.cargarMerma(contextoDe(req), entrada));
+}
+
+/**
+ * El ajuste responde 200, no 201, y es a propósito.
+ *
+ * El resto de las cargas CREAN movimientos siempre, así que 201 es correcto.
+ * Acá el pedido es "esto conté": el sistema compara y decide. Si todas las
+ * cuentas coincidían no se creó nada, y un 201 ("Created") sería mentira.
+ *
+ * El cuerpo de la respuesta es un INFORME: qué había, qué se contó, qué se
+ * corrigió. Eso vale igual aunque no se haya escrito ningún movimiento.
+ */
+export async function postAjuste(req: Request, res: Response): Promise<void> {
+  const entrada = parsear(AjustarStockSchema, req.body);
+  res.status(200).json(await service.ajustar(contextoDe(req), entrada));
 }
 
 export async function postReversa(req: Request, res: Response): Promise<void> {

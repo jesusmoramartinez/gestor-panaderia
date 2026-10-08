@@ -26,6 +26,7 @@ export function Stock() {
   const puedeConsumo = usePuede('consumo:crear');
   const puedeMerma = usePuede('merma:crear');
   const puedeInicial = usePuede('stock:cargar-inicial');
+  const puedeAjustar = usePuede('ajuste:crear');
 
   const categorias = useQuery({ queryKey: ['categorias'], queryFn: listarCategorias });
 
@@ -72,6 +73,11 @@ export function Stock() {
         {puedeMerma && (
           <Link to="/stock/merma" className={`${CLASE_BOTON_SECUNDARIO} grid place-items-center`}>
             Cargar merma
+          </Link>
+        )}
+        {puedeAjustar && (
+          <Link to="/stock/ajuste" className={`${CLASE_BOTON_SECUNDARIO} grid place-items-center`}>
+            Ajustar
           </Link>
         )}
         {puedeInicial && (

@@ -60,6 +60,15 @@ export const PERMISOS = [
    * auditoría con el nombre de quien lo hizo.
    */
   'stock:forzar',
+  /**
+   * Ajustar el stock a lo contado.
+   *
+   * El tercer permiso delicado: cambia el saldo sin que haya pasado nada
+   * físico, así que es la forma más fácil de tapar un faltante. Por eso lleva
+   * motivo obligatorio, queda en el historial como cualquier movimiento, y no
+   * lo tiene el empleado.
+   */
+  'ajuste:crear',
 ] as const;
 
 export type Permiso = (typeof PERMISOS)[number];
@@ -87,6 +96,7 @@ export const PERMISOS_POR_ROL: Record<Rol, readonly Permiso[]> = {
     'merma:crear',
     'movimiento:anular',
     'stock:forzar',
+    'ajuste:crear',
   ],
   // El empleado del turno carga lo que PASÓ en su sucursal: lo que usó y lo
   // que se perdió. No configura el catálogo, no ve precios, no anula nada y no

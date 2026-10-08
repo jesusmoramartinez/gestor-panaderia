@@ -12,6 +12,7 @@ import {
   getHistorial,
   getMotivos,
   getStock,
+  postAjuste,
   postConsumo,
   postMerma,
   postReversa,
@@ -69,6 +70,14 @@ movimientosRouter.post(
   requierePermiso('merma:crear'),
   enSucursalDelCuerpo,
   postMerma,
+);
+
+movimientosRouter.post(
+  '/movimientos/ajuste',
+  requiereAutenticacion,
+  requierePermiso('ajuste:crear'),
+  enSucursalDelCuerpo,
+  postAjuste,
 );
 
 /**

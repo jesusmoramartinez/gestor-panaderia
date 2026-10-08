@@ -121,6 +121,68 @@ export const CargarMermaSchema = CargaBase.extend({
 export type CargarMermaInput = z.infer<typeof CargarMermaSchema>;
 
 /**
+ * Lo que la persona CONTÓ en el depósito.
+ *
+ * A diferencia de las otras cargas, acá el cero ES un valor válido y además es
+ * el caso más común: "se terminó y nadie lo cargó". Por eso este esquema
+ * acepta cero y los otros no.
+ */
+const CantidadContadaSchema = z
+  .string()
+  .trim()
+  .min(1, 'Hay que indicar cuánto contaste')
+  .transform(normalizarNumero)
+  .refine((valor) => esDecimalValido(valor), 'No es un número válido')
+  .refine((valor) => aDecimal(valor).greaterThanOrEqualTo(0), 'No puede ser negativo');
+
+/**
+ * Una línea de ajuste: qué insumo y CUÁNTO HAY.
+ *
+ * Fijate en lo que NO tiene: no tiene `cantidad` (la diferencia) ni `unidadId`.
+ *
+ *   - La DIFERENCIA la calcula el servidor (`contado − saldo`). Si la escribiera
+ *     la persona, tendría que hacer una resta con signo en la cabeza, y
+ *     equivocarse en el signo deja el stock al doble de mal que antes.
+ *   - La UNIDAD es siempre la base del insumo. Contar es comparar contra el
+ *     saldo, y el saldo está en la unidad base: dejar contar en gramos algo
+ *     que se lleva en kilos solo invita a errores. La pantalla muestra la
+ *     unidad al lado del campo.
+ */
+export const LineaAjusteSchema = z.object({
+  insumoId: z.uuid('Hay que elegir un insumo'),
+  cantidadContada: CantidadContadaSchema,
+  notas: NotasOpcional,
+});
+export type LineaAjusteInput = z.infer<typeof LineaAjusteSchema>;
+
+/**
+ * Un ajuste de stock: "conté y hay esto".
+ *
+ * El motivo es OBLIGATORIO y tiene que ser de tipo AJUSTE. Un ajuste sin
+ * motivo es alguien cambiando el número del stock sin decir en nombre de qué,
+ * y es la operación más fácil de usar para tapar un faltante.
+ *
+ * NO lleva `forzar`, y no es un olvido: como lo contado nunca puede ser
+ * negativo, el saldo que queda tampoco. Un ajuste no puede dejar el stock en
+ * negativo; de hecho es la forma de ARREGLARLO cuando quedó negativo.
+ */
+export const AjustarStockSchema = z.object({
+  sucursalId: z.uuid('Hay que elegir una sucursal'),
+  motivoId: z.uuid('Hay que elegir un motivo'),
+  fecha: FechaHechoSchema,
+  notas: NotasOpcional,
+  lineas: z
+    .array(LineaAjusteSchema)
+    .min(1, 'Hay que contar al menos un insumo')
+    .max(100, 'Máximo 100 insumos por ajuste')
+    .refine(
+      (lineas) => new Set(lineas.map((linea) => linea.insumoId)).size === lineas.length,
+      'Hay un insumo repetido: contalo una sola vez',
+    ),
+});
+export type AjustarStockInput = z.infer<typeof AjustarStockSchema>;
+
+/**
  * El esquema que usa EL FORMULARIO del frontend para las tres cargas.
  *
  * ¿Por qué uno aparte? Porque la pantalla es una sola para consumo, merma y
@@ -274,6 +336,36 @@ export const StockPorSucursalSchema = z.object({
   resumen: z.object({ critico: z.number().int(), bajo: z.number().int(), ok: z.number().int() }),
 });
 export type StockPorSucursal = z.infer<typeof StockPorSucursalSchema>;
+
+/**
+ * El informe de un ajuste: qué había, qué se contó y qué se corrigió.
+ *
+ * Devuelve TODAS las líneas, incluidas las que no generaron movimiento porque
+ * la cuenta coincidía. Esa información vale: "conté 12 insumos y 10 estaban
+ * bien" es un resultado, y además es la prueba de que el sistema no inventó
+ * movimientos de cero.
+ */
+export const ResultadoAjusteSchema = z.object({
+  /** null si ninguna línea tenía diferencia: no se escribió nada. */
+  operacionId: z.uuid().nullable(),
+  lineas: z.array(
+    z.object({
+      insumoId: z.uuid(),
+      insumoNombre: z.string(),
+      unidadBaseCodigo: z.string(),
+      /** Lo que decía el sistema antes de ajustar. */
+      saldoAnterior: z.string(),
+      /** Lo que contó la persona. */
+      contado: z.string(),
+      /** contado − saldoAnterior, con signo. '0' si coincidía. */
+      diferencia: z.string(),
+      /** false si la cuenta coincidía y no se escribió ningún movimiento. */
+      ajustado: z.boolean(),
+    }),
+  ),
+  movimientos: z.array(MovimientoSchema),
+});
+export type ResultadoAjuste = z.infer<typeof ResultadoAjusteSchema>;
 
 export const HistorialMovimientosSchema = z.object({
   items: z.array(MovimientoSchema),

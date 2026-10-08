@@ -1,6 +1,7 @@
 // CAPA 3 — SERVICIO: las reglas del negocio. No sabe que existe HTTP.
 import {
   aDecimal,
+  type AjustarStockInput,
   type AnularMovimientoInput,
   type CargarConsumoInput,
   type CargarMermaInput,
@@ -12,6 +13,7 @@ import {
   type HistorialMovimientos,
   type Motivo,
   type Movimiento,
+  type ResultadoAjuste,
   type ResultadoCarga,
   type StockPorSucursal,
 } from '@panaderia/shared';
@@ -24,6 +26,7 @@ import {
   type EntradaMovimiento,
   registrarMovimientos,
   type ResultadoRegistro,
+  saldoActual,
 } from './motor.js';
 import * as repo from './repo.js';
 
@@ -241,6 +244,118 @@ export async function cargarMerma(
   );
 
   return armarResultado(registro);
+}
+
+/**
+ * AJUSTAR EL STOCK A LO CONTADO.
+ *
+ * La operación es "fui al depósito, conté, y hay esto". El sistema calcula la
+ * diferencia contra su propio saldo y escribe un movimiento `AJUSTE` por cada
+ * insumo donde la cuenta no coincide.
+ *
+ * POR QUÉ SE CARGA LO CONTADO Y NO LA DIFERENCIA
+ *
+ * Es la decisión de diseño de esta fase. Pedirle la diferencia a la persona
+ * significa pedirle una resta con signo: "hay 62, el sistema dice 70, entonces
+ * cargo... ¿−8 o +8?". Equivocarse en el signo deja el stock al DOBLE de mal
+ * que antes (78 en lugar de 62), y nadie se da cuenta.
+ *
+ * Cargando lo contado hay una sola cosa que puede estar mal: el número que
+ * contó. Y queda un invariante lindo, que tiene su test:
+ *
+ *   después de un ajuste, el saldo es EXACTAMENTE lo que se contó.
+ *
+ * DÓNDE VA LA LECTURA DEL SALDO
+ *
+ * Adentro de la transacción y después del candado, por la misma razón que en
+ * `cargarSaldoInicial`: si leyera el saldo antes, otro pedido podría escribir
+ * un consumo en el medio y la diferencia calculada sería contra un saldo que
+ * ya no existe. El resultado serían dos ajustes que no coinciden con ninguna
+ * de las dos cuentas.
+ */
+export async function ajustar(ctx: Contexto, entrada: AjustarStockInput): Promise<ResultadoAjuste> {
+  await exigirSucursalDeLaEmpresa(ctx, entrada.sucursalId);
+
+  // El insumo tiene que existir en la empresa. No se exige que esté activo: si
+  // quedó stock de un insumo dado de baja, hay que poder corregirlo.
+  const insumos = new Map<string, { nombre: string; unidadBaseCodigo: string }>();
+  for (const linea of entrada.lineas) {
+    const insumo = await repo.buscarInsumo(ctx.empresaId, linea.insumoId);
+    if (!insumo) {
+      throw errores.datosInvalidos({ insumoId: 'Ese insumo no existe en tu empresa.' });
+    }
+    insumos.set(insumo.id, { nombre: insumo.nombre, unidadBaseCodigo: insumo.unidadBase.codigo });
+  }
+
+  const resultado = await prisma.$transaction(async (tx) => {
+    // En el MISMO orden que usa el motor: alfabético por id.
+    const ordenadas = [...entrada.lineas].sort((a, b) => a.insumoId.localeCompare(b.insumoId));
+
+    const lineas: ResultadoAjuste['lineas'] = [];
+    const aEscribir: EntradaMovimiento[] = [];
+
+    for (const linea of ordenadas) {
+      await bloquearContador(tx, ctx.empresaId, entrada.sucursalId, linea.insumoId);
+
+      const saldoAnterior = await saldoActual(
+        tx,
+        ctx.empresaId,
+        entrada.sucursalId,
+        linea.insumoId,
+      );
+      const contado = aDecimal(linea.cantidadContada);
+      const diferencia = contado.minus(saldoAnterior);
+
+      const datos = insumos.get(linea.insumoId);
+      lineas.push({
+        insumoId: linea.insumoId,
+        insumoNombre: datos?.nombre ?? '',
+        unidadBaseCodigo: datos?.unidadBaseCodigo ?? '',
+        saldoAnterior: saldoAnterior.toString(),
+        contado: contado.toString(),
+        diferencia: diferencia.toString(),
+        ajustado: !diferencia.isZero(),
+      });
+
+      // Si la cuenta coincide NO se escribe nada. Un movimiento de cero no
+      // significa nada, el CHECK de la base lo rechazaría, y además ensuciaría
+      // el historial con filas que no pasó nada.
+      if (diferencia.isZero()) continue;
+
+      aEscribir.push({
+        sucursalId: entrada.sucursalId,
+        insumoId: linea.insumoId,
+        tipo: 'AJUSTE',
+        cantidad: diferencia.abs(),
+        // AJUSTE va en los dos sentidos, así que el signo tiene que venir
+        // decidido: el tipo no lo puede deducir.
+        sentido: diferencia.greaterThan(0) ? 'ENTRADA' : 'SALIDA',
+        // null = la unidad base del insumo. El conteo SIEMPRE es en la unidad
+        // base, así que el factor es 1 y no hay nada que convertir.
+        unidadId: null,
+        motivoId: entrada.motivoId,
+        notas: linea.notas ?? entrada.notas,
+      });
+    }
+
+    // Todas las cuentas coincidían: no hay nada que registrar, y eso es una
+    // buena noticia, no un error.
+    if (aEscribir.length === 0) {
+      return { operacionId: null, lineas, movimientoIds: [] as string[] };
+    }
+
+    const registro = await registrarMovimientos(tx, ctx, aEscribir, {
+      fecha: fechaDe(entrada.fecha),
+    });
+    return { operacionId: registro.operacionId, lineas, movimientoIds: registro.movimientoIds };
+  });
+
+  const filas = await repo.buscarMovimientos(resultado.movimientoIds);
+  return {
+    operacionId: resultado.operacionId,
+    lineas: resultado.lineas,
+    movimientos: filas.map(aMovimiento),
+  };
 }
 
 /**

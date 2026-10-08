@@ -472,20 +472,20 @@ _Por qué una tabla y no texto libre:_ si cada uno escribe "vencio", "Vencido", 
 
 ---
 
-### 3.6 Conteo físico _(Fase 7)_
+### 3.6 Ajuste de stock _(Fase 7)_ — y el conteo físico, que quedó preparado
 
-#### `conteo_fisico`
+**No hay tablas nuevas.** El ajuste se registra como un `movimiento_stock` de tipo `AJUSTE` con su `motivo_id` obligatorio, que ya existían desde la Fase 6.
 
-`id`, `empresa_id`, `sucursal_id`, `numero`, `estado` (enum `BORRADOR` \| `CERRADO` \| `ANULADO`), `fecha`, `categoria_id` (nullable: permite contar solo una categoría — _conteo rotativo_), `usuario_id`, `cerrado_at`, `cerrado_por_id`, `notas`.
+Lo único propio de la operación es que **se carga lo contado y el servicio calcula la diferencia** (`contado − saldo`), con el candado de `insumo_sucursal` tomado. Ver la Fase 7 para el razonamiento completo.
 
-#### `linea_conteo_fisico`
+#### `conteo_fisico` y `linea_conteo` — diseño preparado, NO implementado
 
-`id`, `conteo_fisico_id`, `insumo_id`, `cantidad_sistema` (snapshot del saldo al cerrar), `cantidad_contada`, `cantidad_ingresada` + `unidad_ingresada_id` + `factor_conversion` (lo que tipeó la persona), `notas`.
-La **diferencia** no se guarda: es `cantidad_contada - cantidad_sistema`, un cálculo.
+El plan original tenía un documento de conteo con estados. Se descartó por la respuesta del cliente a C-15 (no piensa hacer conteos formales), pero el diseño queda anotado porque es una extensión limpia si alguna vez entra más gente a contar el depósito:
 
-_Por qué un estado `BORRADOR`:_ contar un depósito lleva horas y se hace en una tablet caminando. La persona carga, se va, vuelve, corrige. Nada toca el stock hasta que **cierra** el conteo. Al cerrar, en **una sola transacción**, se genera un movimiento `AJUSTE` por cada línea con diferencia distinta de cero y el conteo pasa a `CERRADO`.
-_Por qué `cantidad_sistema` se guarda al cerrar y no al abrir:_ si lo guardás al abrir y entre medio alguien registra un consumo legítimo, el ajuste borraría ese consumo. El saldo a comparar es el del momento del cierre.
-_Regla de idempotencia:_ cerrar dos veces el mismo conteo debe fallar (`409`), no duplicar los ajustes. Es el típico bug del doble clic.
+- `conteo_fisico`: `id`, `empresa_id`, `sucursal_id`, `numero`, `estado` (`BORRADOR` | `CERRADO` | `ANULADO`), `fecha`, `categoria_id` (nullable, para contar solo una categoría: _conteo rotativo_), `usuario_id`, `cerrado_at`, `cerrado_por_id`, `notas`.
+- `linea_conteo`: `id`, `conteo_fisico_id`, `insumo_id`, `cantidad_contada`, `saldo_sistema` (snapshot al momento de contar), `diferencia`, `contada_at`, `usuario_id`.
+
+_Lo importante:_ al cerrarse, ese documento **llamaría al mismo servicio de ajuste** que ya existe. No habría que tocar el kardex ni el motor. Y `movimiento_stock` tendría entonces su columna `conteo_fisico_id`, que hoy no existe a propósito (una columna que apunta a una tabla que no existe no la puede validar nadie).
 
 ---
 
@@ -912,32 +912,53 @@ Tu plan tenía 9 fases (0 a 8). Propongo **12**, básicamente partiendo las que 
 
 ---
 
-### Fase 7 — Conteo físico y ajustes
+### Fase 7 — Ajuste de stock contra lo contado ✅
 
-**Objetivo:** cargar lo contado en el depósito y que el sistema genere los ajustes por la diferencia.
+> **Esta fase cambió respecto del plan original**, por la respuesta del cliente a la pregunta **C-15**: _"en teoría el control de stock que va a tener este sistema va a evitar tener que contar; quizás debe permitir hacer un ajuste cada vez que el dueño quiera, poniendo nota"._
+>
+> El plan original era un **conteo físico** como documento con estados (`BORRADOR` → `CERRADO`), que al cerrarse generaba un `AJUSTE` por cada diferencia. Eso tiene sentido cuando varias personas cuentan un depósito grande durante horas y hace falta guardar el conteo a medias. **No es este caso:** el sistema lo va a usar mayormente el dueño (C-13), y no planea hacer conteos formales.
+>
+> Lo que **sí** se conservó es la parte que importa: **se carga lo contado, no la diferencia.** Ver abajo.
+
+**Objetivo:** que el dueño pueda corregir el stock cuando no coincide con la realidad, sin poder equivocarse de signo y sin que quede sin explicación.
+
+**Lo que NO hizo falta:** ninguna migración. El tipo `AJUSTE` y los motivos de tipo `AJUSTE` ya existían desde la Fase 6. Es la señal de que el motor de movimientos quedó bien: una operación nueva es un servicio que lo llama, no un cambio en el kardex.
 
 **Tareas**
 
-1. Tablas `conteo_fisico` y `linea_conteo_fisico`.
-2. `POST /api/conteos` (abre en `BORRADOR`, opcionalmente filtrado por categoría), `PUT /api/conteos/:id/lineas` (cargar/corregir cantidades contadas), `GET /api/conteos/:id` (con diferencias calculadas), `POST /api/conteos/:id/cerrar`, `POST /api/conteos/:id/anular`.
-3. Cierre: **una transacción** que toma el saldo del sistema en ese instante, lo guarda en cada línea, genera un `AJUSTE` por cada diferencia ≠ 0 (con motivo "Diferencia de conteo") y marca el conteo `CERRADO`.
-4. Idempotencia: cerrar dos veces → 409, sin ajustes duplicados.
-5. Front: planilla de conteo para tablet (lista larga, campo numérico grande, guardado parcial, resumen de diferencias antes de confirmar, aviso de las diferencias grandes).
+1. Esquemas `LineaAjusteSchema` y `AjustarStockSchema` en `packages/shared`. La línea lleva `cantidadContada` y **no** lleva diferencia ni unidad.
+2. Permiso nuevo `ajuste:crear` (dueño y encargado; **no** el empleado).
+3. Servicio `ajustar(ctx, entrada)`: por cada insumo, en orden y **con el candado tomado**, lee el saldo, calcula `contado − saldo` y arma un `AJUSTE` solo si la diferencia no es cero.
+4. `POST /api/movimientos/ajuste`, que responde **200** y no 201: si todas las cuentas coincidían no se creó nada, y el cuerpo es un **informe**.
+5. Front: pantalla `/stock/ajuste` multi-línea, que muestra junto a cada insumo lo que dice el sistema y **la diferencia calculada en vivo** mientras se escribe.
 
-**Qué vas a aprender:** documentos en borrador vs confirmados; **snapshot** de datos y por qué el momento en que lo tomás cambia el resultado; idempotencia (el doble clic y el reintento de red); operaciones masivas dentro de una transacción; UX de carga masiva.
+**La decisión de diseño de la fase: se carga lo CONTADO, no la diferencia**
+
+Pedirle la diferencia a la persona es pedirle una resta con signo: _"hay 62, el sistema dice 70, entonces cargo… ¿−8 o +8?"_. Equivocarse en el signo deja el stock **al doble de mal** que antes (78 en lugar de 62) y nadie se da cuenta.
+
+Cargando lo contado hay una sola cosa que puede estar mal: el número que contó. Y queda un invariante con su test:
+
+> **después de un ajuste, el saldo es exactamente lo que se contó.**
+
+Dos consecuencias lindas de ese diseño:
+
+- **Contar cero es válido**, y es el caso más común ("se terminó y nadie lo cargó"). Las otras cargas exigen una cantidad mayor que cero; un conteo no.
+- **Un ajuste nunca puede dejar el stock en negativo**, sin necesidad de ninguna validación: como lo contado no puede ser negativo, el saldo resultante tampoco. Por eso el ajuste es el único movimiento de salida que **no lleva `forzar`** — y de hecho es la forma de arreglar un stock que quedó negativo.
 
 **Terminado cuando:**
 
-- Abro un conteo, cargo 10 insumos de los cuales 3 difieren, cierro → se crean **exactamente 3** movimientos `AJUSTE` y el stock de esos 3 coincide con lo contado.
-- Los otros 7 no generaron ningún movimiento.
-- Reintentar el cierre → 409 y sigue habiendo 3 ajustes.
-- El historial del insumo muestra el ajuste con el número de conteo.
-- Puedo cargar el conteo en varias sesiones sin perder lo cargado.
-- Cargar lo contado en gramos de un insumo que se lleva en kg funciona.
+- Tengo 70 kg de harina, cuento 62 y el sistema registra un `AJUSTE` de −8 y deja el saldo en 62. ✅
+- Cuento 8,5 donde el sistema decía 8 → `AJUSTE` de +0,5. ✅
+- Cuento lo mismo que dice el sistema → **no se escribe ningún movimiento**, y el informe lo dice. ✅
+- Cuento 0 → el saldo queda en 0. ✅
+- Un ajuste sin motivo se rechaza, y un motivo de merma en un ajuste también. ✅
+- El ajuste aparece en el historial y **se puede anular** con una reversa que devuelve el saldo. ✅
+- Dos ajustes simultáneos del mismo insumo no se pisan: el saldo final es una de las dos cuentas, nunca una mezcla. ✅
+- El empleado recibe 403. ✅
 
-**Fuera de esta fase:** conteos programados, avisos, aprobación de ajustes grandes por el dueño (anotado como mejora futura).
+**Fuera de esta fase:** el documento de conteo físico con estados (anotado como mejora futura, en 3.12). Si alguna vez entra más gente a contar el depósito, el modelo está preparado: sería una tabla que agrupa líneas y, al cerrarse, llama al mismo servicio de ajuste.
 
-**Commit sugerido:** `feat(conteos): conteo físico en borrador con ajuste automático al cerrar`
+**Commit sugerido:** `feat(stock): ajuste de stock contra lo contado, con motivo obligatorio`
 
 ---
 

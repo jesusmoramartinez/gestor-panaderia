@@ -5,6 +5,7 @@ import { Inicio } from './routes/Inicio';
 import { InsumoDetalle } from './routes/InsumoDetalle';
 import { InsumoNuevo } from './routes/InsumoNuevo';
 import { Insumos } from './routes/Insumos';
+import { AjustarStock } from './routes/AjustarStock';
 import { CargarMovimiento } from './routes/CargarMovimiento';
 import { HistorialInsumo } from './routes/HistorialInsumo';
 import { Login } from './routes/Login';
@@ -44,6 +45,7 @@ export function App() {
         <Route path="/stock/consumo" element={<CargarMovimiento clase="CONSUMO" />} />
         <Route path="/stock/merma" element={<CargarMovimiento clase="MERMA" />} />
         <Route path="/stock/saldo-inicial" element={<CargarMovimiento clase="SALDO_INICIAL" />} />
+        <Route path="/stock/ajuste" element={<AjustarStock />} />
         <Route path="/stock/:insumoId" element={<HistorialInsumo />} />
       </Route>
 

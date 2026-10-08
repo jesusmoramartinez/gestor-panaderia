@@ -355,8 +355,14 @@ export async function bloquearContador(
   }
 }
 
-/** El saldo actual: la SUMA de los movimientos. Nunca un campo guardado. */
-async function saldoActual(
+/**
+ * El saldo actual: la SUMA de los movimientos. Nunca un campo guardado.
+ *
+ * Se exporta porque el ajuste de stock necesita leerlo para calcular la
+ * diferencia contra lo contado, y tiene que hacerlo DESPUÉS de tomar el
+ * candado y DENTRO de la misma transacción (ver `ajustar` en service.ts).
+ */
+export async function saldoActual(
   tx: Tx,
   empresaId: string,
   sucursalId: string,

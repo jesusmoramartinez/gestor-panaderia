@@ -20,9 +20,10 @@ describe('matriz de permisos', () => {
   });
 
   it('los dos permisos PELIGROSOS son del dueño y del encargado', () => {
-    // Supuesto de la pregunta C-24 de PLAN.md. Anular un movimiento y dejar el
-    // stock en negativo son las dos cosas que pueden tapar un problema real.
-    for (const permiso of ['movimiento:anular', 'stock:forzar'] as const) {
+    // Supuesto de la pregunta C-24 de PLAN.md. Anular un movimiento, dejar el
+    // stock en negativo y ajustarlo a mano son las tres cosas que pueden tapar
+    // un problema real.
+    for (const permiso of ['movimiento:anular', 'stock:forzar', 'ajuste:crear'] as const) {
       expect(tienePermiso('DUENO', permiso), permiso).toBe(true);
       expect(tienePermiso('ENCARGADO', permiso), permiso).toBe(true);
       expect(tienePermiso('EMPLEADO', permiso), permiso).toBe(false);
@@ -70,6 +71,7 @@ describe('matriz de permisos', () => {
       'merma:crear',
       'movimiento:anular',
       'stock:forzar',
+      'ajuste:crear',
     ]);
   });
 

@@ -1,4 +1,5 @@
 import {
+  type AjustarStockInput,
   type AnularMovimientoInput,
   type CargarConsumoInput,
   type CargarMermaInput,
@@ -7,6 +8,7 @@ import {
   type FiltroStock,
   HistorialMovimientosSchema,
   ListaMotivosSchema,
+  ResultadoAjusteSchema,
   ResultadoCargaSchema,
   StockPorSucursalSchema,
 } from '@panaderia/shared';
@@ -57,6 +59,20 @@ export function cargarMerma(entrada: CargarMermaInput) {
     metodo: 'POST',
     cuerpo: entrada,
     esquema: ResultadoCargaSchema,
+  });
+}
+
+/**
+ * Ajustar el stock a lo contado.
+ *
+ * Responde 200 y no 201 a propósito: si todas las cuentas coincidían no se
+ * creó ningún movimiento, y el cuerpo es un informe de lo que pasó.
+ */
+export function ajustarStock(entrada: AjustarStockInput) {
+  return pedirApi('/api/movimientos/ajuste', {
+    metodo: 'POST',
+    cuerpo: entrada,
+    esquema: ResultadoAjusteSchema,
   });
 }
 
