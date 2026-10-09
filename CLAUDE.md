@@ -13,7 +13,7 @@ Sistema web de gestión para una panadería con **dos sucursales**: una **centra
 
 El sistema está pensado para **venderse después a otras panaderías**, así que es **multi-empresa** desde el primer día: todas las tablas de negocio llevan `empresa_id` y los datos de una empresa nunca pueden verse desde otra.
 
-**Etapa actual: control de stock de materia prima (insumos).** Fases 0 a 10 cerradas: el stock se calcula desde el kardex, se ajusta contra lo contado, entra por compras (orden → recepción total o parcial) con costo promedio ponderado, se mueve entre sucursales con transferencias en dos pasos, y la reposición dice qué traer de la Central y qué comprar. Falta la Fase 11 (deploy y backups). Las respuestas del cliente a las preguntas C-1 a C-19 están en `PLAN.md` §5.1, y la investigación sobre cómo compra sus insumos una panadería, en §5.2.
+**Etapa actual: control de stock de materia prima (insumos).** Fases 0 a 10 cerradas y la 11 lista para desplegar (Vercel + Supabase, falta que el cliente cree las cuentas: `docs/deploy-vercel-supabase.md`): el stock se calcula desde el kardex, se ajusta contra lo contado, entra por compras (orden → recepción total o parcial) con costo promedio ponderado, se mueve entre sucursales con transferencias en dos pasos, y la reposición dice qué traer de la Central y qué comprar. Las respuestas del cliente a las preguntas C-1 a C-19 están en `PLAN.md` §5.1, y la investigación sobre cómo compra sus insumos una panadería, en §5.2.
 
 Incluye: empresa/sucursales/usuarios con roles · catálogo de insumos con unidades y conversiones · proveedores · compras con recepción total o parcial · stock por sucursal basado en movimientos (kardex) · consumo manual · conteo físico y ajustes · mermas · transferencias entre sucursales · alertas de stock bajo y vista de reposición · historial de movimientos.
 
@@ -200,7 +200,9 @@ Hay dos clases y viven en lugares distintos:
 14. **Auditar todo lo que se puede modificar**, en la misma transacción que el cambio. Los movimientos de stock NO se auditan (ya son inmutables y llevan usuario y fecha); sí se audita lo excepcional: forzar el stock en negativo.
 15. **Todo valor derivado tiene una función que lo reconstruye desde los hechos**, y se actualiza reconstruyéndolo, nunca sumando o restando sobre lo guardado: el stock (suma de movimientos), lo recibido de una orden (suma de recepciones confirmadas), el costo promedio (`recalcularCostoPromedio`).
 16. **Un movimiento que nació de un documento se corrige desde el documento.** Una `COMPRA` se anula anulando su recepción; lo de una transferencia, anulando la transferencia. Nunca desde el historial.
-17. **Candado de una fila que es destino de claves foráneas: `FOR NO KEY UPDATE`**, no `FOR UPDATE`, si solo se van a cambiar columnas que no son la clave. Insertar una fila hija le pone al padre un candado `FOR KEY SHARE`, y `FOR UPDATE` choca con él (abrazo mortal reproducido en `compras.test.ts`).
+17. **Toda tabla nueva lleva RLS** (`ALTER TABLE … ENABLE ROW LEVEL SECURITY` en su migración). En Supabase, sin RLS, la tabla queda expuesta por su API REST pública. Lo vigila `test/seguridad-base.test.ts`.
+18. **La semilla es solo para desarrollo** (se niega a correr contra una base que no sea local). En producción, el alta: `pnpm --filter @panaderia/api alta empresa|usuario`.
+19. **Candado de una fila que es destino de claves foráneas: `FOR NO KEY UPDATE`**, no `FOR UPDATE`, si solo se van a cambiar columnas que no son la clave. Insertar una fila hija le pone al padre un candado `FOR KEY SHARE`, y `FOR UPDATE` choca con él (abrazo mortal reproducido en `compras.test.ts`).
 
 ---
 
@@ -230,6 +232,11 @@ pnpm lint
 pnpm test                       # los de integración necesitan `pnpm db:up`
 pnpm check                      # las tres de una
 pnpm test:e2e                   # Playwright: el navegador contra la app (necesita `pnpm db:up`)
+
+# Backups y producción (ver docs/operacion.md y docs/deploy-vercel-supabase.md)
+pnpm db:backup                  # pg_dump con retención (7 diarios + 4 semanales) en backups/
+pnpm db:restaurar <archivo> <base_nueva>   # restaura en una base NUEVA
+pnpm --filter @panaderia/api alta empresa|usuario <archivo.json>   # alta de producción
 # La primera vez: pnpm --filter @panaderia/e2e exec playwright install chromium
 # Informe con capturas y trazas: pnpm --filter @panaderia/e2e exec playwright show-report informe
 ```

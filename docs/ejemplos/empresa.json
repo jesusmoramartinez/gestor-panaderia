@@ -1,0 +1,21 @@
+{
+  "empresa": {
+    "nombre": "Panadería Laferrere",
+    "cuit": "30712345678"
+  },
+  "sucursales": [
+    {
+      "codigo": "CEN",
+      "nombre": "Central",
+      "esCentral": true
+    },
+    {
+      "codigo": "LAF",
+      "nombre": "Laferrere"
+    }
+  ],
+  "dueno": {
+    "email": "dueno@ejemplo.com",
+    "nombre": "Nombre del dueño"
+  }
+}

@@ -16,6 +16,17 @@ async function main(): Promise<void> {
   if (env.NODE_ENV === 'production') {
     throw new Error('El seed no se ejecuta en producción (NODE_ENV=production).');
   }
+  // Segunda guarda: solo contra una base LOCAL. La primera no alcanza: si
+  // alguien apunta el .env a Supabase y corre `pnpm db:seed` en modo
+  // desarrollo, la semilla resetearía las contraseñas de los usuarios a la de
+  // desarrollo. Para producción está el alta (prisma/alta.ts).
+  const host = new URL(env.DATABASE_URL).hostname;
+  if (!['localhost', '127.0.0.1', 'db'].includes(host)) {
+    throw new Error(
+      `El seed solo corre contra una base local, y esta es ${host}. ` +
+        'Para dar de alta una empresa en producción: pnpm --filter @panaderia/api alta empresa <archivo>.',
+    );
+  }
 
   console.log(`[seed] base: ${ocultarPassword(env.DATABASE_URL)}`);
   await sembrar(prisma);

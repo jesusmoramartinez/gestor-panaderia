@@ -33,7 +33,7 @@ Cada vez que aparezca un término técnico nuevo, está explicado en `docs/apren
 | 5   | Flujo de compras     | Orden de compra **opcional**                | En la realidad a veces el proveedor llega con el remito y nadie cargó una orden. Permitir los dos caminos evita órdenes de compra falsas. |
 | 6   | Autenticación        | Sesión en base de datos + cookie `httpOnly` | La cookie no es legible por JavaScript (un ataque XSS no roba la sesión) y la sesión en tabla se puede revocar.                           |
 | 7   | Stock negativo       | Bloqueado, salvo permiso especial           | Protege los datos, pero no traba la operación cuando la realidad no coincide con el sistema. Cada vez que se fuerza, queda registrado.    |
-| 8   | Deploy               | Se decide más adelante                      | La Fase 11 deja los requisitos listos (variables de entorno, migraciones, backups) sin atarse a una plataforma.                           |
+| 8   | Deploy               | **Vercel + Supabase** (Fase 11)             | Decidido en la Fase 11: Vercel (front + API como función) y Supabase (Postgres 17). Paso a paso en `docs/deploy-vercel-supabase.md`.      |
 
 El detalle de cada decisión, con las alternativas que descartamos, está en `docs/aprendizaje/02-decisiones-de-arranque.md`.
 
@@ -1115,33 +1115,41 @@ Dos consecuencias lindas de ese diseño:
 
 ---
 
-### Fase 11 — Endurecimiento, deploy y backups
+### Fase 11 — Endurecimiento, deploy y backups 🟡 lista para desplegar
 
 **Objetivo:** que el sistema pueda usarse de verdad en la panadería y que un desastre no se lleve los datos.
 
-**Tareas**
+**Decisiones del cliente al arrancar la fase (9 de octubre de 2026):**
 
-1. Revisión de índices y `EXPLAIN` de las consultas principales con el seed cargado a volumen realista (simular 1 año de movimientos).
-2. Logs estructurados (pino) con identificador de pedido; manejo central de errores que **no** filtra detalles internos al cliente.
-3. `helmet`, límite de tamaño de payload, rate limit general, CORS cerrado al dominio real, cookies `Secure`.
-4. Configuración de producción: variables de entorno documentadas, secretos fuera del repo, build del API compilado y del front estático.
-5. Migraciones aplicadas en el despliegue (`prisma migrate deploy`, que **no** genera migraciones nuevas).
-6. **Backups:** `pg_dump` diario automatizado, retención (por ejemplo 7 diarios + 4 semanales), y lo más importante: **probar el restore** en una base vacía y dejarlo documentado.
-7. Documento de operación de una página: cómo levantar, cómo restaurar, cómo crear un usuario, a quién llamar.
-8. (Opcional) CI en GitHub Actions corriendo `typecheck`, `lint` y `test` en cada push.
-9. Elegir plataforma de deploy (decisión pendiente) y desplegar.
+| Pregunta               | Respuesta                                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ¿Dónde se despliega?   | **Vercel** (front y API) y **Supabase** (la base). Las cuentas las crea y paga el cliente más adelante: queda todo listo y un paso a paso (`docs/deploy-vercel-supabase.md`). |
+| ¿Dependencias nuevas?  | **helmet**, **pino** y **pino-http**.                                                                                                                                         |
+| ¿Integración continua? | **Sí**, GitHub Actions.                                                                                                                                                       |
 
-**Qué vas a aprender:** diferencias entre desarrollo y producción; principios 12-factor (configuración por entorno); logs útiles vs ruido; **backup y restore** (un backup que nunca se restauró no es un backup); integración continua.
+**Lo que se hizo**
 
-**Terminado cuando:**
+1. Índices con volumen realista: 3 años simulados (75.000 movimientos + 500.000 de otra empresa). Las cuatro consultas principales entran por índice; la más lenta, 14 ms. Ningún índice nuevo.
+2. Logs JSON (pino) con id de pedido (`X-Request-Id`), cookie y contraseñas ocultas; error inesperado → mensaje genérico con el código, detalle completo solo en el log. Un cuerpo inválido es 400 y uno enorme 413 (antes caían como 500).
+3. helmet en la API; cabeceras del front en `vercel.json` (CSP sin scripts en línea, HSTS, sin iframes); límite general de pedidos por IP; cookies `Secure` en producción; `TRUST_PROXY` para la IP real detrás de Vercel. CORS: no hace falta (front y API en el mismo dominio) y queda cerrado.
+4. Configuración de producción documentada en `.env.example` y validada al arrancar (`LOG_LEVEL`, `DB_POOL_MAX`, `TRUST_PROXY`, `LIMITE_PEDIDOS_POR_MINUTO`, `DIRECT_URL`). Secretos fuera del repo.
+5. Migraciones en el build de Vercel con `prisma migrate deploy`, **solo** en producción (las previews no migran) y por conexión directa (`DIRECT_URL`).
+6. **Backups:** `pnpm db:backup` (7 diarios + 4 semanales, verifica que tenga tablas) y `pnpm db:restaurar` (en una base nueva). **Restauración probada:** el simulacro encontró un bug del restore (corregido) y después las 25 tablas quedaron idénticas, con la API andando contra la base restaurada. Backup diario de producción en GitHub Actions, **cifrado** (el repo es público).
+7. `docs/operacion.md`: verificar, crear usuarios, backup, restaurar, desplegar, volver atrás, qué no hacer nunca.
+8. CI en GitHub Actions: formato, tipos, lint, tests y Playwright en cada push, contra **Postgres 17** (la versión de Supabase). Playwright corre contra el **build de producción** con las cabeceras de `vercel.json`.
+9. Vercel + Supabase preparados: `vercel.json`, `api/index.js` (probado simulando Vercel), **RLS en todas las tablas** con su test (Supabase publica las tablas por una API REST pública), alta de producción (`pnpm --filter @panaderia/api alta empresa|usuario`) y la semilla bloqueada fuera de la base local.
 
-- Borro la base local, restauro el último backup y el sistema arranca con todos los datos.
-- El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería.
-- Un error inesperado devuelve un mensaje genérico al usuario y el detalle completo queda en los logs.
-- El backup corre solo y existe un archivo de ayer.
-- Existe el documento de operación y alguien que no sea vos lo puede seguir.
+**Terminado cuando** — repasado punto por punto:
 
-**Commit sugerido:** `chore(deploy): endurecimiento, backups y documentación de operación`
+- ✅ Borro la base local, restauro el último backup y el sistema arranca con todos los datos. _(En una base nueva, para no borrar los datos de prueba del cliente: 25 tablas idénticas y la API entra y muestra el stock.)_
+- ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(Pendiente: faltan las cuentas. Simulado localmente: función de Vercel en modo producción, cookie `Secure`, cabeceras e IP real.)_
+- ✅ Un error inesperado devuelve un mensaje genérico al usuario y el detalle completo queda en los logs. _(test)_
+- ⏳ El backup corre solo y existe un archivo de ayer. _(El workflow está; no hace nada hasta que estén los secretos de Supabase.)_
+- 🟡 Existe el documento de operación y alguien que no sea vos lo puede seguir. _(Existe; que lo siga otra persona no se puede verificar desde acá.)_
+
+**Qué aprendiste:** desarrollo vs producción (12-factor); logs útiles vs ruido; cabeceras de seguridad y CSP; backup y restore (y por qué hay que probarlo); RLS y la API pública de Supabase; integración continua; serverless y el pooler de conexiones (nota 19).
+
+**Commits:** `chore(api): endurecimiento…`, `chore(ops): backups…`, `chore(deploy): Vercel listo…`, `chore(deploy): Supabase listo…`.
 
 ---
 

@@ -1,0 +1,7 @@
+{
+  "empresaId": "pegá-acá-el-id-que-imprimió-el-alta-de-la-empresa",
+  "email": "encargado@ejemplo.com",
+  "nombre": "Nombre del encargado",
+  "rol": "ENCARGADO",
+  "sucursales": ["LAF"]
+}
