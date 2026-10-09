@@ -1,0 +1,95 @@
+# =============================================================================
+# INTEGRACIÓN CONTINUA: en cada push a main (y en cada pull request), GitHub
+# corre lo mismo que `pnpm check` + Playwright, en una máquina limpia.
+#
+# "En una máquina limpia" es la gracia: atrapa lo que en tu máquina anda de
+# casualidad (un archivo sin commitear, una dependencia instalada a mano, un
+# .env que nadie más tiene).
+#
+# El Postgres de acá es la versión 17, la misma que usa Supabase en
+# producción (en desarrollo usamos la 18): así cada push verifica también que
+# las migraciones funcionan en la versión de producción.
+# =============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Si llegan dos pushes seguidos, se cancela el anterior: solo importa el último.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgresql://panaderia:panaderia_ci@localhost:5432/panaderia
+
+jobs:
+  verificar:
+    name: Formato, tipos, lint y tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: panaderia
+          POSTGRES_PASSWORD: panaderia_ci
+          POSTGRES_DB: panaderia
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U panaderia" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      # La versión de pnpm sale del campo "packageManager" de package.json.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      # --frozen-lockfile: si el lockfile no coincide con los package.json, falla
+      # en lugar de "arreglarlo" en silencio. En CI se instala lo que dice el
+      # lockfile, ni una versión más.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @panaderia/shared build
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  e2e:
+    name: Playwright (navegador)
+    needs: verificar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: panaderia
+          POSTGRES_PASSWORD: panaderia_ci
+          POSTGRES_DB: panaderia
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U panaderia" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # --with-deps: también las librerías del sistema que Chromium necesita.
+      - run: pnpm --filter @panaderia/e2e exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      # Si falló, el informe con capturas y trazas queda para descargar.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: informe-playwright
+          path: e2e/informe/
+          retention-days: 7

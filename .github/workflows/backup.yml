@@ -1,0 +1,86 @@
+# =============================================================================
+# BACKUP DIARIO de la base de PRODUCCIÓN (Supabase), CIFRADO.
+#
+# Corre solo todos los días a las 03:00 de Argentina (06:00 UTC), y también
+# a mano desde la pestaña Actions ("Run workflow").
+#
+# Mientras no estén cargados los secretos SUPABASE_DB_URL y BACKUP_PASSPHRASE
+# (Settings → Secrets and variables → Actions), el workflow avisa y termina
+# sin hacer nada: se puede commitear antes de tener Supabase.
+#
+# ⚠️ EL REPOSITORIO ES PÚBLICO. En un repo público, los archivos que genera
+# una Action los puede descargar cualquiera con cuenta de GitHub. Por eso el
+# backup se CIFRA (AES-256) antes de subirlo, con una clave que solo tiene el
+# dueño. Aun así: pasá el repo a privado antes de activar esto (ver
+# docs/deploy-vercel-supabase.md).
+#
+# RETENCIÓN: los diarios se guardan 7 días y la copia de los domingos, 28.
+# Es ADEMÁS de los backups propios de Supabase (el plan Pro guarda 7 días):
+# un backup que vive en el mismo lugar que la base no protege de perder el
+# acceso a ese lugar.
+# =============================================================================
+name: Backup diario
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: ¿Están los secretos?
+        id: secretos
+        run: |
+          if [[ -z "$SUPABASE_DB_URL" || -z "$BACKUP_PASSPHRASE" ]]; then
+            echo "::warning::Faltan los secretos SUPABASE_DB_URL o BACKUP_PASSPHRASE: no se hace backup."
+            echo "listo=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "listo=si" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Volcar la base (pg_dump 17, la versión de Supabase)
+        if: steps.secretos.outputs.listo == 'si'
+        run: |
+          mkdir -p backup
+          docker run --rm -v "$PWD/backup:/backup" postgres:17 \
+            pg_dump "$SUPABASE_DB_URL" --format=custom --schema=public --no-owner --no-privileges \
+            --file=/backup/panaderia.dump
+          # Un backup vacío da una falsa tranquilidad: se verifica que tenga tablas.
+          TABLAS=$(docker run --rm -v "$PWD/backup:/backup" postgres:17 \
+            pg_restore --list /backup/panaderia.dump | grep -c "TABLE DATA" || true)
+          echo "Tablas con datos: $TABLAS"
+          if [[ "$TABLAS" -lt 10 ]]; then echo "::error::El backup parece vacío"; exit 1; fi
+
+      - name: Cifrar (AES-256)
+        if: steps.secretos.outputs.listo == 'si'
+        run: |
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" --output backup/panaderia.dump.gpg backup/panaderia.dump
+          rm backup/panaderia.dump
+          echo "FECHA=$(date -u +%F)" >> "$GITHUB_ENV"
+          echo "DIA=$(date -u +%u)" >> "$GITHUB_ENV"
+
+      - name: Guardar el diario (7 días)
+        if: steps.secretos.outputs.listo == 'si'
+        uses: actions/upload-artifact@v4
+        with:
+          name: panaderia-diario-${{ env.FECHA }}
+          path: backup/panaderia.dump.gpg
+          retention-days: 7
+
+      - name: Guardar el semanal (los domingos, 28 días)
+        if: steps.secretos.outputs.listo == 'si' && env.DIA == '7'
+        uses: actions/upload-artifact@v4
+        with:
+          name: panaderia-semanal-${{ env.FECHA }}
+          path: backup/panaderia.dump.gpg
+          retention-days: 28

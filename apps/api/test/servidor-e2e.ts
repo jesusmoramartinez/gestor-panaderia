@@ -16,7 +16,11 @@
  * Lo lanza Playwright (`webServer` en e2e/playwright.config.ts); a mano no
  * hace falta correrlo nunca.
  */
-process.loadEnvFile('../../.env');
+try {
+  process.loadEnvFile('../../.env');
+} catch {
+  // En CI no hay .env: DATABASE_URL viene del entorno del workflow.
+}
 
 const urlDev = process.env['DATABASE_URL'] ?? '';
 if (urlDev === '') throw new Error('Falta DATABASE_URL en el .env de la raíz.');

@@ -27,7 +27,9 @@
     "db:migrate": "pnpm --filter @panaderia/api db:migrate",
     "db:seed": "pnpm --filter @panaderia/api db:seed",
     "db:studio": "pnpm --filter @panaderia/api db:studio",
-    "db:reset": "pnpm --filter @panaderia/api db:reset"
+    "db:reset": "pnpm --filter @panaderia/api db:reset",
+    "db:backup": "./scripts/backup.sh",
+    "db:restaurar": "./scripts/restaurar.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
