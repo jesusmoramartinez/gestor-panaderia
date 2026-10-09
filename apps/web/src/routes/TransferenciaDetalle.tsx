@@ -63,6 +63,8 @@ export function TransferenciaDetalle() {
       queryClient.setQueryData(['transferencia', id], actualizada);
       await queryClient.invalidateQueries({ queryKey: ['transferencias'] });
       await queryClient.invalidateQueries({ queryKey: ['stock'] });
+      await queryClient.invalidateQueries({ queryKey: ['alertas'] });
+      await queryClient.invalidateQueries({ queryKey: ['reposicion'] });
       setAnulando(false);
     },
   });
@@ -249,6 +251,8 @@ function Recepcion({ transferencia }: { transferencia: Detalle }) {
       queryClient.setQueryData(['transferencia', transferencia.id], actualizada);
       await queryClient.invalidateQueries({ queryKey: ['transferencias'] });
       await queryClient.invalidateQueries({ queryKey: ['stock'] });
+      await queryClient.invalidateQueries({ queryKey: ['alertas'] });
+      await queryClient.invalidateQueries({ queryKey: ['reposicion'] });
       await queryClient.invalidateQueries({ queryKey: ['historial'] });
     },
     onError: (error) => {

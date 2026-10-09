@@ -84,6 +84,8 @@ export function RecibirOrden() {
         ['ordenes'],
         ['recepciones'],
         ['stock'],
+        ['alertas'],
+        ['reposicion'],
         ['historial'],
         ['proveedor'],
         ['proveedoresDeInsumo'],

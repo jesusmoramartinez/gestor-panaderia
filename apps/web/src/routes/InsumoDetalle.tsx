@@ -494,6 +494,7 @@ function FormularioParametros({
   puedeEditar: boolean;
 }) {
   const guardar = useGuardarInsumo();
+  const queryClient = useQueryClient();
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [guardado, setGuardado] = useState(false);
 
@@ -512,6 +513,9 @@ function FormularioParametros({
       definirParametrosSucursal(insumoId, parametros.sucursalId, valores),
     onSuccess: async (actualizado) => {
       await guardar(actualizado);
+      // Cambiar un mínimo cambia qué está en alerta y qué hay que reponer.
+      await queryClient.invalidateQueries({ queryKey: ['alertas'] });
+      await queryClient.invalidateQueries({ queryKey: ['reposicion'] });
       setGuardado(true);
       form.reset(form.getValues());
     },

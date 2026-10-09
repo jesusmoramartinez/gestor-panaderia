@@ -1,8 +1,9 @@
 import { formatearFechaArgentina, type UsuarioSesion } from '@panaderia/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 
 import { usePuede } from '../hooks/useSesion';
+import { obtenerAlertas } from '../lib/reposicion';
 import { cerrarSesion } from '../lib/sesion';
 import { ProveedorSucursalActiva, useSucursalActiva } from './SucursalActiva';
 import { SelectorTema } from './Tema';
@@ -55,14 +56,89 @@ function SelectorSucursal() {
   );
 }
 
+/**
+ * El menú principal, con el NÚMERO DE ALERTAS de la sucursal activa (Fase 10).
+ *
+ * Es un componente aparte porque necesita la sucursal activa, y esa vive en un
+ * contexto que crea LayoutPrivado: un componente no puede leer un contexto que
+ * él mismo provee, solo sus hijos.
+ *
+ * El número va en "Reposición" para quien la puede ver, y en "Stock" para el
+ * resto (el empleado no ve precios, pero tiene que saber que falta harina).
+ */
+function Menu() {
+  const { activa } = useSucursalActiva();
+  // El empleado no ve proveedores (ahí hay precios), así que tampoco tiene
+  // sentido mostrarle la pestaña: haría clic y se comería un 403. Esto es
+  // comodidad, no seguridad: la defensa real está en la API.
+  const veProveedores = usePuede('proveedor:ver');
+  const veCompras = usePuede('compra:ver');
+
+  const alertas = useQuery({
+    queryKey: ['alertas', activa?.id],
+    queryFn: () => obtenerAlertas(activa?.id ?? ''),
+    enabled: activa !== null,
+    // Cambia cuando alguien carga stock: se refresca al volver a la pestaña
+    // y cada minuto, sin recargar la página.
+    refetchInterval: 60_000,
+  });
+  const cantidad = (alertas.data?.critico ?? 0) + (alertas.data?.bajo ?? 0);
+  const hayCriticos = (alertas.data?.critico ?? 0) > 0;
+  const conNumero = veCompras ? '/reposicion' : '/stock';
+
+  return (
+    <nav className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+      {/* overflow-x-auto: con siete pestañas, en una pantalla angosta no entran
+          todas; se desplazan de costado en lugar de romper la página. */}
+      <ul className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-2">
+        {[
+          { a: '/', texto: 'Inicio' },
+          ...(veCompras ? [{ a: '/reposicion', texto: 'Reposición' }] : []),
+          { a: '/stock', texto: 'Stock' },
+          // Sin permiso para VER: el empleado tiene que saber qué le llega.
+          { a: '/transferencias', texto: 'Transferencias' },
+          ...(veCompras ? [{ a: '/compras', texto: 'Compras' }] : []),
+          { a: '/insumos', texto: 'Insumos' },
+          ...(veProveedores ? [{ a: '/proveedores', texto: 'Proveedores' }] : []),
+        ].map((item) => (
+          <li key={item.a}>
+            {/* NavLink sabe si su ruta es la activa y nos pasa isActive. */}
+            <NavLink
+              to={item.a}
+              end={item.a === '/'}
+              className={({ isActive }) =>
+                `flex min-h-12 items-center gap-2 border-b-2 px-4 font-medium whitespace-nowrap transition ${
+                  isActive
+                    ? 'border-corteza text-corteza dark:border-corteza-claro dark:text-corteza-claro'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-50'
+                }`
+              }
+            >
+              {item.texto}
+              {item.a === conNumero && cantidad > 0 && (
+                <span
+                  aria-label={`${String(cantidad)} insumos en alerta`}
+                  className={`rounded-full px-2 text-xs font-bold ${
+                    hayCriticos ? 'bg-red-600 text-white' : 'bg-amber-400 text-amber-950'
+                  }`}
+                >
+                  {cantidad}
+                </span>
+              )}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
   const navegar = useNavigate();
   const queryClient = useQueryClient();
   // El empleado no ve proveedores (ahí hay precios), así que tampoco tiene
   // sentido mostrarle la pestaña: haría clic y se comería un 403. Esto es
   // comodidad, no seguridad: la defensa real está en la API.
-  const veProveedores = usePuede('proveedor:ver');
-  const veCompras = usePuede('compra:ver');
 
   const salir = useMutation({
     mutationFn: cerrarSesion,
@@ -102,38 +178,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
           </div>
         </header>
 
-        <nav className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-          {/* overflow-x-auto: con cinco pestañas, en un celular no entran
-              todas; se desplazan de costado en lugar de romper la página. */}
-          <ul className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-2">
-            {[
-              { a: '/', texto: 'Inicio' },
-              { a: '/stock', texto: 'Stock' },
-              // Sin permiso para VER: el empleado tiene que saber qué le llega.
-              { a: '/transferencias', texto: 'Transferencias' },
-              { a: '/insumos', texto: 'Insumos' },
-              ...(veCompras ? [{ a: '/compras', texto: 'Compras' }] : []),
-              ...(veProveedores ? [{ a: '/proveedores', texto: 'Proveedores' }] : []),
-            ].map((item) => (
-              <li key={item.a}>
-                {/* NavLink sabe si su ruta es la activa y nos pasa isActive. */}
-                <NavLink
-                  to={item.a}
-                  end={item.a === '/'}
-                  className={({ isActive }) =>
-                    `flex min-h-12 items-center border-b-2 px-4 font-medium whitespace-nowrap transition ${
-                      isActive
-                        ? 'border-corteza dark:border-corteza-claro text-corteza dark:text-corteza-claro'
-                        : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-50'
-                    }`
-                  }
-                >
-                  {item.texto}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <Menu />
 
         <main className="mx-auto max-w-5xl p-4">
           <Outlet />

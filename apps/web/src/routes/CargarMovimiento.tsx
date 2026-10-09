@@ -168,6 +168,8 @@ export function CargarMovimiento({ clase }: { clase: Clase }) {
       setResultado(datos);
       // Cambió el stock: todo lo que lo muestra quedó viejo.
       await queryClient.invalidateQueries({ queryKey: ['stock'] });
+      await queryClient.invalidateQueries({ queryKey: ['alertas'] });
+      await queryClient.invalidateQueries({ queryKey: ['reposicion'] });
       await queryClient.invalidateQueries({ queryKey: ['historial'] });
       form.reset(valoresVacios(activa?.id ?? ''));
     },

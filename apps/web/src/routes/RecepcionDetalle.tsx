@@ -44,6 +44,8 @@ export function RecepcionDetalle() {
         ['ordenes'],
         ['orden'],
         ['stock'],
+        ['alertas'],
+        ['reposicion'],
         ['historial'],
         ['proveedor'],
         ['proveedoresDeInsumo'],

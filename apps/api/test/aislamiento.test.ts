@@ -9,6 +9,7 @@ import type {
   ProveedorDetalle,
   ProveedorResumen,
   RecepcionDetalle,
+  Reposicion,
   StockPorSucursal,
   TransferenciaDetalle,
   UnidadMedida,
@@ -681,6 +682,44 @@ describe('aislamiento entre empresas', () => {
 
     const sucursales = (await api.get('/api/sucursales')).cuerpo as { id: string }[];
     expect(sucursales.map((s) => s.id)).not.toContain(laferrere.sucursalCentralId);
+  });
+
+  // --- Fase 10: reposición -------------------------------------------------
+
+  it('la reposición y las alertas no cruzan empresas', async () => {
+    // Laferrere con un insumo PROPIO de este test en alerta (no la harina de
+    // la semilla: otros tests leen sus mínimos).
+    await entrarComo('dueno@panaderia.test');
+    const kg = await prisma.unidadMedida.findFirstOrThrow({
+      where: { empresaId: laferrere.empresaId, codigo: 'kg' },
+    });
+    const creado = await api.post('/api/insumos', {
+      nombre: `Insumo reposición aislamiento ${String(Date.now())}`,
+      unidadBaseId: kg.id,
+    });
+    const insumoAjeno = (creado.cuerpo as { id: string }).id;
+    await api.pedir(
+      'PUT',
+      `/api/insumos/${insumoAjeno}/sucursales/${laferrere.sucursalCentralId}`,
+      {
+        stockMinimo: '1',
+        activo: true,
+      },
+    );
+
+    api.olvidarCookies();
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get('/api/reposicion');
+    expect(r.status).toBe(200);
+    const datos = r.cuerpo as Reposicion;
+    expect(datos.items.some((i) => i.insumo.id === insumoAjeno)).toBe(false);
+    expect(datos.items.some((i) => i.sucursal.id === laferrere.sucursalCentralId)).toBe(false);
+    expect(datos.central?.id).not.toBe(laferrere.sucursalCentralId);
+
+    const filtroAjeno = await api.get(`/api/reposicion?sucursalId=${laferrere.sucursalCentralId}`);
+    expect(filtroAjeno.status).toBe(403);
+    const alertasAjenas = await api.get(`/api/alertas?sucursalId=${laferrere.sucursalCentralId}`);
+    expect(alertasAjenas.status).toBe(403);
   });
 
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {

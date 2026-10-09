@@ -3,7 +3,7 @@ import { EnviarTransferenciaSchema, formatearCantidad } from '@panaderia/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 
 import {
   Campo,
@@ -19,6 +19,7 @@ import { usePuede } from '../hooks/useSesion';
 import { ErrorDeApi } from '../lib/api';
 import { listarUnidades } from '../lib/catalogo';
 import { aplicarErroresDelServidor } from '../lib/erroresFormulario';
+import { leerPrecarga, type PrecargaTransferencia } from '../lib/reposicion';
 import { obtenerStock } from '../lib/stock';
 import { enviarTransferencia, listarSucursales } from '../lib/transferencias';
 
@@ -51,15 +52,22 @@ export function EnviarTransferencia() {
     enabled: origenId !== '',
   });
 
+  // Desde la reposición ("Armar transferencia") llega con el destino y lo
+  // que la Central puede mandar.
+  const precarga = leerPrecarga<PrecargaTransferencia>(useLocation().state, 'transferencia');
+
   const form = useForm({
     resolver: zodResolver(EnviarTransferenciaSchema),
     defaultValues: {
       sucursalOrigenId: origenId,
-      sucursalDestinoId: '',
+      sucursalDestinoId: precarga?.destinoId ?? '',
       fecha: '',
       notas: '',
       forzar: false,
-      lineas: [{ ...LINEA_VACIA }],
+      lineas:
+        precarga === null
+          ? [{ ...LINEA_VACIA }]
+          : precarga.lineas.map((linea) => ({ ...LINEA_VACIA, ...linea })),
     },
   });
   const lineas = useFieldArray({ control: form.control, name: 'lineas' });
@@ -69,6 +77,8 @@ export function EnviarTransferencia() {
     onSuccess: async (transferencia) => {
       await queryClient.invalidateQueries({ queryKey: ['transferencias'] });
       await queryClient.invalidateQueries({ queryKey: ['stock'] });
+      await queryClient.invalidateQueries({ queryKey: ['alertas'] });
+      await queryClient.invalidateQueries({ queryKey: ['reposicion'] });
       await queryClient.invalidateQueries({ queryKey: ['historial'] });
       await navegar(`/transferencias/${transferencia.id}`, { replace: true });
     },
@@ -130,7 +140,15 @@ export function EnviarTransferencia() {
             etiqueta="Sucursal de destino"
             error={form.formState.errors.sucursalDestinoId?.message}
           >
-            <select className={CLASE_CONTROL} {...form.register('sucursalDestinoId')}>
+            {/* Controlado (`value`): las sucursales llegan de la API y el
+                destino puede venir precargado desde la reposición. Sin esto
+                se veía "Elegí a dónde va" con Laferrere adentro (lo encontró
+                Playwright). */}
+            <select
+              className={CLASE_CONTROL}
+              {...form.register('sucursalDestinoId')}
+              value={form.watch('sucursalDestinoId')}
+            >
               <option value="">Elegí a dónde va</option>
               {destinos.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -164,7 +182,11 @@ export function EnviarTransferencia() {
                         : `Hay ${formatearCantidad(elegido.saldo)} ${elegido.unidadBaseCodigo} en ${activa.nombre}`
                     }
                   >
-                    <select className={CLASE_CONTROL} {...form.register(`${ruta}.insumoId`)}>
+                    <select
+                      className={CLASE_CONTROL}
+                      {...form.register(`${ruta}.insumoId`)}
+                      value={valores[indice]?.insumoId ?? ''}
+                    >
                       <option value="">Elegí un insumo</option>
                       {filas
                         .filter(
@@ -188,7 +210,11 @@ export function EnviarTransferencia() {
                     />
                   </Campo>
                   <Campo etiqueta="Unidad" error={errores?.unidadId?.message}>
-                    <select className={CLASE_CONTROL} {...form.register(`${ruta}.unidadId`)}>
+                    <select
+                      className={CLASE_CONTROL}
+                      {...form.register(`${ruta}.unidadId`)}
+                      value={valores[indice]?.unidadId ?? ''}
+                    >
                       <option value="">{elegido?.unidadBaseCodigo ?? 'La del insumo'}</option>
                       {(unidades.data ?? []).map((u) => (
                         <option key={u.id} value={u.id}>

@@ -17,7 +17,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useFieldArray, useForm, type UseFormReturn } from 'react-hook-form';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import type { z } from 'zod';
 
 import { DialogoConfirmacion } from '../components/Dialogo';
@@ -42,6 +42,7 @@ import {
   recibirDirecta,
 } from '../lib/compras';
 import { aplicarErroresDelServidor } from '../lib/erroresFormulario';
+import { leerPrecarga, type PrecargaOrden } from '../lib/reposicion';
 import { listarProveedores, obtenerProveedor } from '../lib/proveedores';
 
 /**
@@ -238,9 +239,22 @@ export function FormularioCompra({ modo }: { modo: ModoFormulario }) {
         ? conNombreObligatorio(FormularioCompraSchema)
         : FormularioCompraSchema;
 
+  // Si se llega desde la reposición ("Crear orden con esto"), la orden arranca
+  // con el proveedor, la sucursal y las cantidades sugeridas.
+  const ubicacion = useLocation();
+  const precarga =
+    modo === 'orden-nueva' ? leerPrecarga<PrecargaOrden>(ubicacion.state, 'orden') : null;
+
   const form: Formulario = useForm({
     resolver: zodResolver(esquema),
-    defaultValues: valoresVacios(activa?.id ?? ''),
+    defaultValues:
+      precarga === null
+        ? valoresVacios(activa?.id ?? '')
+        : {
+            ...valoresVacios(precarga.sucursalId),
+            proveedorId: precarga.proveedorId,
+            lineas: precarga.lineas,
+          },
   });
   const lineas = useFieldArray({ control: form.control, name: 'lineas' });
 
@@ -340,6 +354,8 @@ export function FormularioCompra({ modo }: { modo: ModoFormulario }) {
         await alTerminar(`/recepciones/${idGuardado}`, [
           ['recepciones'],
           ['stock'],
+          ['alertas'],
+          ['reposicion'],
           ['historial'],
           ['proveedor'],
           ['proveedoresDeInsumo'],
@@ -416,6 +432,12 @@ export function FormularioCompra({ modo }: { modo: ModoFormulario }) {
           {modo === 'orden-editar' && orden.data && ` ${String(orden.data.numero)}`}
         </h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{config.ayuda}</p>
+        {precarga !== null && (
+          <p className="mt-2 rounded-lg bg-sky-50 p-2 text-sm text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+            Precargada desde la <strong>reposición</strong>, con las cantidades sugeridas en bultos
+            enteros. Revisá y confirmá.
+          </p>
+        )}
         {modo === 'orden-nueva' && plantilla.data && (
           <p className="mt-2 rounded-lg bg-sky-50 p-2 text-sm text-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
             Precargada desde la plantilla <strong>{plantilla.data.nombre}</strong>. Revisá las
@@ -448,7 +470,14 @@ export function FormularioCompra({ modo }: { modo: ModoFormulario }) {
             )}
 
             <Campo etiqueta="Proveedor" error={form.formState.errors.proveedorId?.message}>
-              <select className={CLASE_CONTROL} {...form.register('proveedorId')}>
+              {/* Controlado (`value`): las opciones llegan de la API, y el
+                  valor puede venir antes (orden editada, plantilla, reposición).
+                  Ver la regla en CLAUDE.md, "Frontend". */}
+              <select
+                className={CLASE_CONTROL}
+                {...form.register('proveedorId')}
+                value={form.watch('proveedorId')}
+              >
                 <option value="">Elegí un proveedor</option>
                 {(proveedores.data ?? []).map((fila) => (
                   <option key={fila.id} value={fila.id}>
@@ -459,7 +488,11 @@ export function FormularioCompra({ modo }: { modo: ModoFormulario }) {
             </Campo>
 
             <Campo etiqueta="Sucursal que recibe" error={form.formState.errors.sucursalId?.message}>
-              <select className={CLASE_CONTROL} {...form.register('sucursalId')}>
+              <select
+                className={CLASE_CONTROL}
+                {...form.register('sucursalId')}
+                value={form.watch('sucursalId')}
+              >
                 {sucursales.map((sucursal) => (
                   <option key={sucursal.id} value={sucursal.id}>
                     {sucursal.nombre}
@@ -768,6 +801,7 @@ function FilaLinea({
         <select
           className={CLASE_CONTROL}
           {...registroInsumo}
+          value={insumoId}
           onChange={(evento) => {
             void registroInsumo.onChange(evento);
             alElegirInsumo(evento.target.value);

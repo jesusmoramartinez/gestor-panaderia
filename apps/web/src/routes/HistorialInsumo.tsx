@@ -52,6 +52,8 @@ export function HistorialInsumo() {
       setNecesitaForzar(false);
       await queryClient.invalidateQueries({ queryKey: ['historial'] });
       await queryClient.invalidateQueries({ queryKey: ['stock'] });
+      await queryClient.invalidateQueries({ queryKey: ['alertas'] });
+      await queryClient.invalidateQueries({ queryKey: ['reposicion'] });
     },
     onError: (error) => {
       if (error instanceof ErrorDeApi && error.codigo === 'STOCK_INSUFICIENTE') {

@@ -82,6 +82,8 @@ export function AjustarStock() {
     onSuccess: async (datos) => {
       setResultado(datos);
       await queryClient.invalidateQueries({ queryKey: ['stock'] });
+      await queryClient.invalidateQueries({ queryKey: ['alertas'] });
+      await queryClient.invalidateQueries({ queryKey: ['reposicion'] });
       await queryClient.invalidateQueries({ queryKey: ['historial'] });
       form.reset(valoresVacios(activa?.id ?? ''));
     },

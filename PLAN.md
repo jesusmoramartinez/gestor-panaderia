@@ -1075,33 +1075,43 @@ Dos consecuencias lindas de ese diseño:
 
 ---
 
-### Fase 10 — Alertas de stock bajo y vista de reposición
+### Fase 10 — Alertas de stock bajo y vista de reposición ✅
 
 **Objetivo:** que el dueño abra el sistema y vea qué hay que comprar, por sucursal y por proveedor.
 
-**Tareas**
+**Decisiones del cliente al arrancar la fase (8 de octubre de 2026):**
 
-1. Migración con la vista SQL `v_stock_actual` (saldo por empresa, sucursal e insumo), escrita a mano.
-2. Consulta de reposición: insumos con saldo por debajo del mínimo, cantidad faltante, cantidad sugerida (hasta el máximo si está definido), proveedor preferido, último precio y fecha, y **lo que ya está pedido** en órdenes abiertas.
-3. `GET /api/reposicion?sucursalId=` con dos agrupaciones: por sucursal y por proveedor.
-4. Indicador en el layout con la cantidad de insumos en alerta de la sucursal activa.
-5. Front: pantalla de reposición con semáforo (crítico = sin stock, bajo = debajo del mínimo, ok), agrupada por proveedor, con el total estimado de la compra. Botón "crear orden de compra con esto" (reusa la Fase 8).
-6. Revisar el plan de ejecución de la consulta (`EXPLAIN ANALYZE`) y confirmar que usa los índices.
+| Pregunta                                      | Respuesta                                                                                                                        |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| A Laferrere le falta harina: ¿qué se sugiere? | **Primero, que la mande la Central**, con lo que le sobra por encima de su propio mínimo. Lo que la Central no cubre, se compra. |
+| ¿La cantidad sugerida se redondea?            | **Sí, a bultos enteros para arriba** de la presentación del proveedor preferido (faltan 60 kg en bolsas de 25 → 3 bolsas).       |
 
-**Qué vas a aprender:** **vistas** SQL y cuándo valen la pena; JOIN entre datos configurados y datos derivados; `EXPLAIN` y lectura básica de un plan de consulta; diseño de un tablero que se entienda de un vistazo.
+**Lo que se hizo**
 
-**Terminado cuando:**
+1. Migración con la vista `v_stock_actual`, escrita a mano.
+2. `planificarReposicion` (función pura): objetivo = máximo o mínimo; faltante = objetivo − saldo − **ya pedido** (órdenes PEDIDA/PARCIAL, menos lo recibido) − **en camino** (transferencias ENVIADAS); el sobrante de la Central se reparte entre las otras sucursales; el resto se compra en bultos enteros. Sin mínimo configurado, no hay alerta.
+3. `GET /api/reposicion` (con `compra:ver`): los ítems por sucursal, las transferencias sugeridas por destino y las compras agrupadas por proveedor **y** sucursal (cada grupo es una orden). `GET /api/alertas?sucursalId=` (sin permiso: son cantidades) para el número del menú.
+4. Número de alertas en el menú (en "Reposición", o en "Stock" para quien no ve compras), rojo si hay algo sin stock.
+5. Pantalla de reposición: qué manda la Central (botón "Armar la transferencia", precargada), qué comprar por proveedor con total (botón "Crear orden con esto", precargada), y el detalle por sucursal plegado. Inicio con un resumen de "hoy".
+6. `EXPLAIN ANALYZE` con 330.000 movimientos (en una transacción descartada): entra por el índice y lee solo los de la empresa. Ver la nota 18.
+7. **Tests:** 20 unitarios de la reposición, 12 de integración, 1 caso de aislamiento y la prueba de Playwright del recorrido completo.
+8. **Playwright** quedó en el proyecto (`e2e/`, `pnpm test:e2e`), con base propia (`panaderia_e2e`): 4 pruebas.
 
-- Pongo el mínimo de la harina en 50 kg teniendo 40 → aparece en la alerta de esa sucursal, agrupada bajo su proveedor preferido, sugiriendo la cantidad a pedir.
-- Un insumo en 0 aparece como crítico, arriba de los demás.
-- Si tengo una orden pendiente por 100 kg, la vista lo muestra como "ya pedido" y no lo cuenta dos veces.
-- La alerta de la sucursal A no mezcla insumos de la sucursal B.
-- `EXPLAIN ANALYZE` no muestra un recorrido completo de `movimiento_stock`.
-- Desde la vista puedo generar una orden de compra con las cantidades sugeridas.
+**Terminado cuando** — repasado punto por punto:
 
-**Fuera de esta fase:** avisos por email/WhatsApp, predicción de consumo, punto de pedido automático por rotación (todo anotado como mejora futura).
+- ✅ Pongo el mínimo de la harina en 50 kg teniendo 40 → aparece en la alerta de esa sucursal, agrupada bajo su proveedor preferido, sugiriendo la cantidad a pedir. _(test: faltan 60 hasta el máximo → 3 bolsas, $75.000)_
+- ✅ Un insumo en 0 aparece como crítico, arriba de los demás.
+- ✅ Si tengo una orden pendiente por 100 kg, la vista lo muestra como "ya pedido" y no lo cuenta dos veces. _(comprobado rompiendo el descuento: fallan 3 tests)_
+- ✅ La alerta de la sucursal A no mezcla insumos de la sucursal B.
+- ✅ `EXPLAIN ANALYZE` no muestra un recorrido completo de `movimiento_stock`. _(Bitmap Index Scan, 30.000 de 330.000 filas, 9,6 ms)_
+- ✅ Desde la vista puedo generar una orden de compra con las cantidades sugeridas. _(test de integración + Playwright: la orden se crea precargada y después la reposición la muestra como "cubierto")_
+- ✅ (agregado) Desde la vista puedo armar la transferencia desde la Central, y lo que viene en camino deja de sugerirse.
 
-**Commit sugerido:** `feat(alertas): vista de reposición por sucursal y proveedor`
+**Qué aprendiste:** vistas SQL y cuándo valen la pena; JOIN entre datos configurados y derivados; leer un plan de `EXPLAIN` (y por qué con pocos datos miente); una pantalla ordenada en el orden en que se actúa; la regla del `<select>` controlado.
+
+**Fuera de esta fase:** avisos por email/WhatsApp, predicción de consumo, punto de pedido automático por rotación, usar los días de entrega del proveedor para anticipar el pedido (mejora futura: hoy se muestran, no se calculan).
+
+**Commit:** `feat(reposicion): alertas y vista de reposición por sucursal y proveedor`
 
 ---
 

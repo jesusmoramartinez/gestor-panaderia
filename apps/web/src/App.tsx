@@ -15,6 +15,7 @@ import { OrdenDetalle } from './routes/OrdenDetalle';
 import { Plantillas } from './routes/Plantillas';
 import { RecepcionDetalle } from './routes/RecepcionDetalle';
 import { RecibirOrden } from './routes/RecibirOrden';
+import { Reposicion } from './routes/Reposicion';
 import { ProveedorDetalle } from './routes/ProveedorDetalle';
 import { ProveedorNuevo } from './routes/ProveedorNuevo';
 import { Proveedores } from './routes/Proveedores';
@@ -74,6 +75,8 @@ export function App() {
         <Route path="/compras/:id/recibir" element={<RecibirOrden />} />
         <Route path="/recepciones/nueva" element={<FormularioCompra modo="recepcion" />} />
         <Route path="/recepciones/:id" element={<RecepcionDetalle />} />
+
+        <Route path="/reposicion" element={<Reposicion />} />
 
         <Route path="/transferencias" element={<Transferencias />} />
         <Route path="/transferencias/nueva" element={<EnviarTransferencia />} />
