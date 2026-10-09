@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    // Las pruebas corren en Node, pero el código que se evalúa ADENTRO de la
+    // página usa el DOM; por eso las dos librerías de tipos.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
+  },
+  "include": ["pruebas", "playwright.config.ts"]
+}

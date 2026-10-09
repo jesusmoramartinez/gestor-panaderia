@@ -178,6 +178,35 @@ React manda) se vuelve a pintar cuando aparecen las opciones.
 > **La regla:** typecheck + tests de la API + "compila" no es "anda". Una
 > pantalla está probada cuando alguien (o algo) la usó.
 
+### Y después: Playwright
+
+El script a mano sirvió para encontrar los bugs, pero vivía en una carpeta
+temporal. Con el visto bueno del cliente, quedó en el proyecto como
+**Playwright** (`e2e/`), la herramienta estándar para esto. Lo que agrega
+sobre el script:
+
+- **Localizadores por rol y etiqueta** (`getByRole('combobox', { name })`):
+  se busca un control como lo encuentra una persona (o un lector de
+  pantalla), no por una clase CSS que mañana cambia.
+- **Espera sola**: `expect(...).toBeVisible()` reintenta hasta que aparece,
+  así no hay `sleep` arbitrarios.
+- **Traza de lo que falló**: cada paso con su captura, el DOM y la red, para
+  ver qué pasó sin volver a correr nada.
+- **Su propio entorno**: levanta una API con la base `panaderia_e2e` (que se
+  borra y se siembra en cada corrida) y un Vite apuntando a ella, en otros
+  puertos. No toca los datos de desarrollo.
+
+Dos cosas que encontró apenas se escribió:
+
+- El remito aparecía **dos veces** en el historial (en la línea de la
+  recepción y en una nota automática del movimiento).
+- `getByLabel('Insumo')` encontraba también el desplegable de unidad, porque
+  una de sus opciones dice "La del insumo": el nombre accesible de un control
+  incluye todo el texto de su `<label>`. Se busca por cómo **empieza** el nombre.
+
+Y la prueba de que sirve: reintroduje el bug de `limite=200` y las dos
+pruebas de compras fallaron.
+
 ---
 
 ## Resumen en una línea por idea

@@ -2,6 +2,9 @@
 packages:
   - 'apps/*'
   - 'packages/*'
+  # Las pruebas de punta a punta (Playwright). Es un paquete aparte porque no
+  # es ni la web ni la API: maneja un navegador contra las dos.
+  - 'e2e'
 
 # CATÁLOGO: las versiones que comparten varios paquetes se declaran UNA vez acá.
 # En los package.json se escribe "catalog:" en lugar del número de versión.

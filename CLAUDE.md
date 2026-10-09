@@ -37,7 +37,7 @@ Estudiante de Ingeniería Informática aprendiendo desarrollo web. **Las explica
 8. **Los tests de la lógica de stock y de conversiones no son opcionales.** Una fase que toca stock no está terminada sin sus tests.
 9. **No dar por terminado lo que no se verificó.** Si un test falla o un paso quedó a medias, decirlo con el output real.
 10. **Al terminar una fase**, repasar el criterio de "Terminado cuando" de `PLAN.md` punto por punto antes de declararla cerrada.
-11. **Una pantalla no está probada hasta que alguien la usó.** Typecheck, tests de la API y "compila" no alcanzan (en la Fase 8 una lista de insumos llegaba vacía y ningún test lo vio). Antes de cerrar una fase con pantallas, recorrer el flujo en Chromium headless por el protocolo de DevTools, a 768×1024, mirando las capturas y los errores de consola y de red. Cómo, en `docs/aprendizaje/17`.
+11. **Una pantalla no está probada hasta que alguien la usó.** Typecheck, tests de la API y "compila" no alcanzan (en la Fase 8 una lista de insumos llegaba vacía y ningún test lo vio). Una fase con pantallas no se cierra sin su prueba de Playwright en `e2e/pruebas/` (`pnpm test:e2e` en verde) y sin mirar las capturas de las pantallas nuevas.
 
 ---
 
@@ -165,10 +165,12 @@ Si una función necesita `req`, no es un servicio. Si un servicio necesita saber
 
 Hay dos clases y viven en lugares distintos:
 
-| Clase           | Dónde                                | Qué prueba                                                                                                                                                                       |
-| --------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Unitario**    | junto al archivo, `loquesea.test.ts` | Lógica pura: conversiones, CPP, hashing, el limitador de intentos. Sin base de datos.                                                                                            |
-| **Integración** | `apps/api/test/`                     | La API de punta a punta: levanta Express en un puerto libre, usa cookies y pega contra una base **aparte** (`panaderia_test`), que se borra y se vuelve a crear en cada corrida. |
+| Clase                   | Dónde                                | Qué prueba                                                                                                                                                                                                                                                       |
+| ----------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unitario**            | junto al archivo, `loquesea.test.ts` | Lógica pura: conversiones, CPP, hashing, el limitador de intentos. Sin base de datos.                                                                                                                                                                            |
+| **Punta a punta (e2e)** | `e2e/pruebas/`                       | Un navegador de verdad (Playwright, Chromium) usa la aplicación de verdad: front + API + una base aparte (`panaderia_e2e`), a 768×1024. Es lo único que ve lo que ve una persona. Corre con `pnpm test:e2e` y levanta todo solo, en otros puertos (3100 y 5174). |
+| **Integración**         | `apps/api/test/`                     | La API de punta a punta: levanta Express en un puerto libre, usa cookies y pega contra una base **aparte** (`panaderia_test`), que se borra y se vuelve a crear en cada corrida.                                                                                 |
+| **Punta a punta (e2e)** | `e2e/pruebas/`                       | Un navegador de verdad (Playwright, Chromium) usa la aplicación de verdad: front + API + una base aparte (`panaderia_e2e`), a 768×1024. Es lo único que ve lo que ve una persona. `pnpm test:e2e` levanta todo solo en otros puertos (API 3100, web 5174).       |
 
 - Los tests de integración necesitan Postgres levantado (`pnpm db:up`).
 - Cada regla de negocio escrita en `PLAN.md` tiene que tener su test.
@@ -225,6 +227,9 @@ pnpm typecheck
 pnpm lint
 pnpm test                       # los de integración necesitan `pnpm db:up`
 pnpm check                      # las tres de una
+pnpm test:e2e                   # Playwright: el navegador contra la app (necesita `pnpm db:up`)
+# La primera vez: pnpm --filter @panaderia/e2e exec playwright install chromium
+# Informe con capturas y trazas: pnpm --filter @panaderia/e2e exec playwright show-report informe
 ```
 
 ## Usuarios de desarrollo

@@ -692,7 +692,10 @@ async function confirmarRecepcion(
       unidadId: null,
       costoUnitario: linea.costoUnitarioBase,
       recepcionCompraId: recepcionId,
-      notas: datos.numeroRemito === null ? null : `Remito ${datos.numeroRemito}`,
+      // Las notas de la recepción, no el remito: el historial ya muestra la
+      // recepción con su remito, y repetirlo en la nota lo mostraba dos veces
+      // (lo encontró la prueba de Playwright).
+      notas: datos.notas,
     })),
     { fecha: datos.fecha, operacionId },
   );

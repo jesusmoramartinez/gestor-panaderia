@@ -35,3 +35,7 @@ backups/
 
 # Cliente de Prisma generado (se regenera con `pnpm db:generate`)
 apps/api/src/generated/
+
+# Playwright: informes, trazas y capturas de cada corrida
+e2e/informe/
+e2e/resultados/

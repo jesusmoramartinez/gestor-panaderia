@@ -20,8 +20,12 @@ export default defineConfig({
        *
        * En producción no hace falta: front y API van a estar en el mismo dominio.
        */
+      //
+      // El destino se puede cambiar con API_URL: las pruebas de Playwright
+      // levantan OTRA API (puerto 3100, con su propia base) y otro Vite que
+      // apunta a ella, sin chocar con el `pnpm dev` que tengas abierto.
       '/api': {
-        target: 'http://localhost:3000',
+        target: process.env['API_URL'] ?? 'http://localhost:3000',
         changeOrigin: true,
       },
     },

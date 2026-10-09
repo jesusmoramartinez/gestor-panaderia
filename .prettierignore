@@ -2,3 +2,7 @@ node_modules/
 dist/
 coverage/
 pnpm-lock.yaml
+
+# Lo que genera Playwright en cada corrida
+e2e/informe/
+e2e/resultados/

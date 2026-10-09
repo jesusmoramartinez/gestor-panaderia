@@ -14,6 +14,9 @@ export default tseslint.config(
       '**/node_modules/**',
       // Código generado por Prisma: no lo escribimos nosotros.
       '**/src/generated/**',
+      // Lo que genera Playwright en cada corrida (informe HTML, trazas).
+      'e2e/informe/**',
+      'e2e/resultados/**',
     ],
   },
 
