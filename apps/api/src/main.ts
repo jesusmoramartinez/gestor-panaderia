@@ -1,11 +1,15 @@
 import { crearApp } from './app.js';
 import { env } from './config/env.js';
 import { cerrarConexiones } from './lib/db.js';
+import { logger } from './lib/log.js';
 
 const app = crearApp();
 
 const servidor = app.listen(env.PORT, () => {
-  console.log(`[api] escuchando en http://localhost:${env.PORT}  (NODE_ENV=${env.NODE_ENV})`);
+  logger.info(
+    { puerto: env.PORT, entorno: env.NODE_ENV },
+    `escuchando en http://localhost:${String(env.PORT)}`,
+  );
 });
 
 /**
@@ -15,7 +19,7 @@ const servidor = app.listen(env.PORT, () => {
  */
 for (const senal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(senal, () => {
-    console.log(`\n[api] recibí ${senal}, cerrando...`);
+    logger.info({ senal }, 'cerrando');
     servidor.close(() => {
       cerrarConexiones()
         .then(() => process.exit(0))

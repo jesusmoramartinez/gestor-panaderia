@@ -28,6 +28,10 @@ const urlAdmin = urlDev === '' ? '' : conBase(urlDev, 'postgres');
 
 // Se leen en preparar-base.ts, que corre en este mismo proceso.
 process.env['DATABASE_URL_PRUEBA'] = urlPrueba;
+// Los tests disparan cientos de pedidos por minuto desde la misma IP: el límite
+// general se apaga acá y se prueba aparte, con un tope chico
+// (test/endurecimiento.test.ts).
+process.env['LIMITE_PEDIDOS_POR_MINUTO'] = '0';
 process.env['DATABASE_URL_ADMIN'] = urlAdmin;
 
 export default defineConfig({

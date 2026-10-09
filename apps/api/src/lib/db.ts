@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
 import { env } from '../config/env.js';
+import { logger } from './log.js';
 import { PrismaClient } from '../generated/prisma/client.js';
 
 /**
@@ -14,7 +15,8 @@ import { PrismaClient } from '../generated/prisma/client.js';
  */
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 10,
+  // 10 en un servidor propio; 1 en Vercel (ver DB_POOL_MAX en env.schema.ts).
+  max: env.DB_POOL_MAX,
   // Si la base no responde en 5s, fallar con un error claro en lugar de
   // dejar el pedido colgado para siempre.
   connectionTimeoutMillis: 5_000,
@@ -25,7 +27,7 @@ export const pool = new Pool({
 // que es un error no manejado y MATA el proceso. Con esto, la API sigue viva
 // y el pool abre una conexión nueva en el próximo pedido.
 pool.on('error', (error: Error) => {
-  console.error('[db] error en una conexión en reposo:', error.message);
+  logger.error({ err: error }, 'error en una conexión en reposo de la base');
 });
 
 /**

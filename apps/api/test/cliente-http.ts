@@ -63,6 +63,14 @@ export class ClienteHttp {
     };
   }
 
+  /**
+   * Un pedido sin procesar: devuelve la Response de fetch tal cual, para los
+   * tests que miran cabeceras o mandan cuerpos que no son JSON.
+   */
+  crudo(ruta: string, init?: RequestInit): Promise<Response> {
+    return fetch(`${this.base}${ruta}`, init);
+  }
+
   get = (ruta: string) => this.pedir('GET', ruta);
   post = (ruta: string, cuerpo?: unknown) => this.pedir('POST', ruta, cuerpo);
 

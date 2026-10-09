@@ -61,6 +61,15 @@ export class LimitadorIntentos {
     this.fallos.set(clave, vigentes);
   }
 
+  /**
+   * Cuenta un evento cualquiera (no un fallo): lo usa el límite GENERAL de
+   * pedidos, que cuenta todos. Es lo mismo que registrarFallo, con el nombre
+   * que corresponde a ese uso.
+   */
+  registrar(clave: string): void {
+    this.registrarFallo(clave);
+  }
+
   /** Se llama cuando el login funciona: borra el historial de esa clave. */
   limpiar(clave: string): void {
     this.fallos.delete(clave);

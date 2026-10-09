@@ -26,6 +26,41 @@ export const EnvSchema = z.object({
       (valor) => valor.startsWith('postgresql://') || valor.startsWith('postgres://'),
       'debe ser una cadena de conexión de PostgreSQL (postgresql://usuario:clave@host:puerto/base)',
     ),
+
+  // === Producción (Fase 11). Todas tienen un valor por defecto que sirve en
+  // desarrollo: en tu máquina no hace falta tocar ninguna. ===
+
+  /**
+   * Cuánto detalle escriben los logs. Vacío = 'info', salvo en los tests
+   * ('silent': si no, cada test llenaría la consola de JSON).
+   */
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
+
+  /**
+   * Cuántas conexiones a la base abre CADA proceso de la API.
+   *
+   * En un servidor propio, 10 está bien. En Vercel cada función es un proceso
+   * aparte y puede haber decenas a la vez: con 10 cada una se agotan las
+   * conexiones de Supabase. Ahí va 1 (y la conexión, por el pooler).
+   */
+  DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+
+  /**
+   * Si la API está detrás de un proxy (Vercel, un balanceador): la IP real
+   * del usuario viene en la cabecera X-Forwarded-For y hay que creerle al
+   * proxy. Sin esto, todos los pedidos parecen venir de la IP del proxy, y el
+   * limitador de intentos bloquearía a TODOS los usuarios juntos.
+   *
+   * Solo se activa detrás de un proxy de confianza: si no, cualquiera podría
+   * mandar un X-Forwarded-For falso y esquivar el limitador.
+   */
+  TRUST_PROXY: z.stringbool().default(false),
+
+  /**
+   * Pedidos por minuto que acepta la API desde una misma IP. 0 = sin límite
+   * (los tests de integración disparan cientos de pedidos por minuto).
+   */
+  LIMITE_PEDIDOS_POR_MINUTO: z.coerce.number().int().min(0).default(600),
 });
 
 // El tipo se DERIVA del esquema: una sola fuente de verdad.

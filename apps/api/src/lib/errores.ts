@@ -49,6 +49,15 @@ export const errores = {
       { esperarSegundos },
     ),
 
+  /** El límite GENERAL de pedidos por IP (no el del login). */
+  demasiadosPedidos: (esperarSegundos: number) =>
+    new AppError(
+      'DEMASIADOS_PEDIDOS',
+      `Demasiados pedidos seguidos. Probá de nuevo en ${String(esperarSegundos)} segundos.`,
+      429,
+      { esperarSegundos },
+    ),
+
   sinPermiso: () => new AppError('SIN_PERMISO', 'No tenés permiso para hacer esto.', 403),
 
   sucursalNoPermitida: () =>

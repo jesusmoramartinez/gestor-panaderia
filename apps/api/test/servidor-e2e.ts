@@ -40,4 +40,5 @@ console.log('[e2e] base panaderia_e2e lista');
 process.env['DATABASE_URL'] = urlE2e;
 process.env['PORT'] = process.env['PORT_E2E'] ?? '3100';
 process.env['NODE_ENV'] = 'test';
+process.env['LIMITE_PEDIDOS_POR_MINUTO'] = '0';
 await import('../src/main.js');
