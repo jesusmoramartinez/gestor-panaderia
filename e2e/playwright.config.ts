@@ -13,7 +13,8 @@ import { defineConfig, devices } from '@playwright/test';
  *
  *   API  → http://localhost:3100, con su propia base `panaderia_e2e`, que se
  *          borra y se vuelve a sembrar en cada corrida
- *   web  → http://localhost:5174, con el proxy apuntando a esa API
+ *   web  → http://localhost:5174: el BUILD de producción (vite preview), con
+ *          las cabeceras de seguridad de vercel.json y el proxy a esa API
  *
  * Correr:  pnpm test:e2e            (desde la raíz)
  * Ver el informe con capturas y trazas de lo que falló:
@@ -49,6 +50,10 @@ export default defineConfig({
     },
   ],
 
+  // Los dos servidores arrancan EN PARALELO, y los dos necesitan el paquete
+  // compartido compilado. Por eso se compila UNA vez antes, en el script
+  // `test:e2e` del package.json. Lo encontró el CI: en una máquina limpia el
+  // dist/ todavía no existía cuando arrancaba la API (en la mía, siempre).
   webServer: [
     {
       // Prepara la base panaderia_e2e y recién después arranca la API.
@@ -61,8 +66,11 @@ export default defineConfig({
       stdout: 'pipe',
     },
     {
+      // El BUILD DE PRODUCCIÓN servido con `vite preview`, que aplica las
+      // mismas cabeceras de seguridad (CSP incluida) que pone Vercel: se
+      // prueba lo que se va a desplegar, no el servidor de desarrollo.
       command:
-        'pnpm --filter @panaderia/shared build && pnpm --filter @panaderia/web exec vite --port 5174 --strictPort',
+        'pnpm --filter @panaderia/web build && pnpm --filter @panaderia/web exec vite preview --port 5174 --strictPort',
       url: 'http://localhost:5174',
       cwd: '..',
       env: { API_URL: 'http://localhost:3100' },

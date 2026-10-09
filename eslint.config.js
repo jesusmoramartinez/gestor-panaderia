@@ -63,6 +63,15 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
 
-  // 6. Va ÚLTIMO: apaga las reglas de ESLint que pelean con Prettier.
+  // 6. El script del tema corre en el NAVEGADOR, antes que React (ver
+  //    apps/web/public/tema-inicial.js): ahí existen estas variables globales.
+  {
+    files: ['apps/web/public/**/*.js'],
+    languageOptions: {
+      globals: { window: 'readonly', document: 'readonly', localStorage: 'readonly' },
+    },
+  },
+
+  // 7. Va ÚLTIMO: apaga las reglas de ESLint que pelean con Prettier.
   prettierConfig,
 );

@@ -91,6 +91,11 @@ export async function sucursales(page: Page): Promise<{ central: string; laferre
 export function vigilarErrores(page: Page): string[] {
   const errores: string[] = [];
   page.on('pageerror', (error) => errores.push(`excepción: ${error.message}`));
+  // Los errores de consola incluyen las violaciones de la política de
+  // contenido (CSP): si la CSP de producción bloquea algo del front, sale acá.
+  page.on('console', (mensaje) => {
+    if (mensaje.type() === 'error') errores.push(`consola: ${mensaje.text()}`);
+  });
   page.on('response', (respuesta) => {
     if (respuesta.status() >= 400 && !respuesta.url().endsWith('/favicon.ico')) {
       errores.push(

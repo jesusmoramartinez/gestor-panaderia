@@ -94,7 +94,12 @@ test('de la alerta a la transferencia y a la orden, con dos botones', async ({ p
   await expect(desplegable(page, 'Sucursal de destino')).toHaveValue(laferrere);
   await expect(page.getByLabel('Cantidad').first()).toHaveValue('20');
   await page.getByRole('button', { name: 'Enviar', exact: true }).click();
-  await expect(page.getByText('en tránsito')).toBeVisible();
+  // Se espera la URL de la transferencia CREADA, y no el texto "en tránsito":
+  // la pantalla de envío ya dice "queda en tránsito" en su explicación, y con
+  // el build de producción (más rápido) la prueba leía el saldo antes de que
+  // el envío terminara.
+  await expect(page).toHaveURL(/\/transferencias\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('en tránsito', { exact: true })).toBeVisible();
   expect(await saldo(page, insumo.id, central)).toBe('100');
 
   // Lo que viene en camino ya no se sugiere de nuevo.

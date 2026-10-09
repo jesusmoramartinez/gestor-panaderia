@@ -4,34 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gestor de Panadería</title>
-    <script>
-      /**
-       * Pone el tema ANTES de que React monte.
-       *
-       * Sin esto hay un "parpadeo": el navegador dibuja la página en claro
-       * (el valor por defecto), React arranca unos milisegundos después, pone
-       * data-tema="oscuro" y toda la pantalla cambia de golpe. Molesta
-       * bastante, y en una tablet se ve peor.
-       *
-       * Es el único JavaScript suelto del proyecto, y va acá a propósito:
-       * tiene que correr antes de que se pinte el primer pixel.
-       */
-      (function () {
-        try {
-          var guardado = localStorage.getItem('panaderia.tema');
-          var oscuroDelSistema = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var resuelto =
-            guardado === 'claro' || guardado === 'oscuro'
-              ? guardado
-              : oscuroDelSistema
-                ? 'oscuro'
-                : 'claro';
-          document.documentElement.dataset.tema = resuelto;
-        } catch (error) {
-          document.documentElement.dataset.tema = 'claro';
-        }
-      })();
-    </script>
+    <script src="/tema-inicial.js"></script>
   </head>
   <body>
     <!-- React monta toda la aplicación dentro de este div -->

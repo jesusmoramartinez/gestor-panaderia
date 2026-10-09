@@ -50,7 +50,10 @@ test('enviar 20 kg, llegan 18 y la diferencia queda como merma en el destino', a
   await page.getByLabel('Cantidad').fill('20');
   await page.getByRole('button', { name: 'Enviar', exact: true }).click();
 
-  await expect(page.getByText('en tránsito')).toBeVisible();
+  // Se espera la URL de la transferencia CREADA, y no el texto "en tránsito":
+  // la pantalla de envío ya dice "queda en tránsito" en su explicación.
+  await expect(page).toHaveURL(/\/transferencias\/[0-9a-f-]{36}$/);
+  await expect(page.getByText('en tránsito', { exact: true })).toBeVisible();
   // Desde el ORIGEN no se pregunta "¿qué llegó?" (bug encontrado en el navegador).
   await expect(page.getByText('¿Qué llegó?')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Anular el envío' })).toBeVisible();
