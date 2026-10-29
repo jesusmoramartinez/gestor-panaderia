@@ -13,7 +13,7 @@ desbloqueada (`ssh vps`). La primera instalación está en
 | El servidor                   | VPS de DigitalOcean (Toronto), `ssh vps`, compartido con la clínica  |
 | La app y su base              | `/srv/panaderia` (contenedores `panaderia-api-1` y `panaderia-db-1`) |
 | Los datos                     | volumen de Docker `panaderia_panaderia_pgdata` (**no borrar**)       |
-| Backups                       | `/srv/backups/panaderia/` y Google Drive (`backups-vps/panaderia`)   |
+| Backups                       | `/srv/backups/panaderia/` y Google Drive (`backups-panaderia`)       |
 | Claves (base, backups, dueño) | gestor de contraseñas de Jesús                                       |
 | **A quién llamar si se cae**  | _nombre y teléfono_                                                  |
 

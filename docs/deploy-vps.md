@@ -204,7 +204,7 @@ Tres copias, el mismo esquema pensado para la clínica:
 | --------------- | ---------------------------------------------- | ------------------------------------ | --------------------- |
 | Antes de deploy | `/srv/backups/panaderia/antes-*.dump`          | cada `actualizar.sh`                 | hasta borrarlo a mano |
 | Local           | `/srv/backups/panaderia/automaticos/*.sql.gpg` | 9:00 y 21:00 de Buenos Aires         | 7 días                |
-| Google Drive    | `gdrive:backups-vps/panaderia/`                | las mismas, **solo si hubo cambios** | 30 días               |
+| Google Drive    | `gdrive:backups-panaderia/`                    | las mismas, **solo si hubo cambios** | 30 días               |
 | Laptop          | `~/backups/panaderia/`                         | cuando quieras: `pnpm backup:bajar`  | lo que quieras        |
 
 - Cada backup es `pg_dump | gpg --symmetric --cipher-algo AES256`: el dump
@@ -237,7 +237,11 @@ Tres copias, el mismo esquema pensado para la clínica:
 
 ```bash
 # 4. rclone (gpg ya viene con Ubuntu)
-ssh vps 'sudo apt-get install -y rclone && rclone version | head -1'
+#    .deb oficial, la misma versión que la laptop, verificado antes de instalar
+#    (el sha256 sale de https://downloads.rclone.org/v1.75.2/SHA256SUMS)
+ssh vps 'curl -fsSLo /tmp/rclone.deb https://downloads.rclone.org/v1.75.2/rclone-v1.75.2-linux-amd64.deb \
+  && echo "efbfe852181f7191eb3c9043ed1ab49c9b2d0ba045c61c926a5da111c939ec5c  /tmp/rclone.deb" | sha256sum -c - \
+  && sudo dpkg -i /tmp/rclone.deb && rm /tmp/rclone.deb'
 
 # 5. La clave de cifrado: generada EN el servidor, sin mostrarla
 ssh vps 'sudo install -d -m 700 /root/.config/backup /root/.config/rclone /etc/backup \
@@ -264,7 +268,7 @@ ssh -t vps 'sudo nano /etc/backup/panaderia.env'
 # 9. Probar a mano, mirar el log y Drive, y recién ahí activar el timer
 ssh vps 'sudo systemctl daemon-reload && sudo systemctl start backup@panaderia.service \
   && sudo tail -n 3 /var/log/backup-panaderia.log'
-rclone ls gdrive:backups-vps/panaderia
+rclone ls gdrive:backups-panaderia
 ssh vps 'sudo systemctl enable --now backup@panaderia.timer && systemctl list-timers "backup@*"'
 ```
 

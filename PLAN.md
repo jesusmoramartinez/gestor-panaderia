@@ -1145,14 +1145,21 @@ Dos consecuencias lindas de ese diseño:
 **Terminado cuando** — repasado punto por punto:
 
 - ✅ Borro la base local, restauro el último backup y el sistema arranca con todos los datos. _(En una base nueva, para no borrar los datos de prueba del cliente: 25 tablas idénticas y la API entra y muestra el stock.)_
-- ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(Pendiente: crear el subdominio y desplegar, `docs/deploy-vps.md`. Simulado en la laptop con la imagen, el compose y un Caddy iguales a los del servidor.)_
+- ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(29/10/2026: desplegado en el VPS (`panaderia-api:2026-10-29-a485353`) y dada de alta Panadería Morinigo; falta el HTTPS, que espera el DNS de `panaderia-j.duckdns.org`, y que Marcelo entre desde la tablet.)_
 - ✅ Un error inesperado devuelve un mensaje genérico al usuario y el detalle completo queda en los logs. _(test)_
-- ⏳ El backup corre solo y existe un archivo de ayer. _(Hecho y probado en la laptop; falta instalarlo en el servidor: `docs/deploy-vps.md`, Backups.)_
+- 🟡 El backup corre solo y existe un archivo de ayer. _(29/10/2026: instalado en el VPS; el primero, a mano, subió a Drive y se restauró en la laptop con las 25 tablas idénticas a producción. El timer corre a las 9 y 21 de Buenos Aires: "un archivo de ayer" se confirma mañana.)_
 - 🟡 Existe el documento de operación y alguien que no sea vos lo puede seguir. _(Existe; que lo siga otra persona no se puede verificar desde acá.)_
 
 **Qué aprendiste:** desarrollo vs producción (12-factor); logs útiles vs ruido; cabeceras de seguridad y CSP; backup y restore (y por qué hay que probarlo); RLS y la API pública de Supabase; integración continua; serverless y el pooler de conexiones (nota 19); imagen de Docker en dos etapas, proxy inverso y probar el deploy antes del deploy (nota 20); backups cifrados, huellas y retención (nota 21).
 
 **Commits:** `chore(api): endurecimiento…`, `chore(ops): backups…`, `chore(deploy): Vercel listo…`, `chore(deploy): Supabase listo…`, `chore(deploy): VPS en lugar de Vercel + Supabase…`.
+
+**Pendientes después del primer deploy (29/10/2026):**
+
+1. **Que Marcelo entre con su propia contraseña y su propio email.** Hoy la web no tiene pantalla para cambiar la contraseña ni el email: el alta se hizo con una contraseña generada al azar y `marcelo@panaderia.com` (temporal). Hace falta: "cambiar mi contraseña" (pide la actual) para todos, y que el dueño pueda cambiar el email de un usuario (auditado). Pedido del cliente.
+2. **Urgente: client_id propio de Google Drive para rclone.** rclone avisa que el client_id compartido "deja de funcionar durante 2026": los backups a Drive se pueden cortar cualquier día (healthchecks.io avisaría; la copia local sigue). Crear uno en Google Cloud (https://rclone.org/drive/#making-your-own-client-id), `rclone config reconnect gdrive:` en la laptop y copiar el `rclone.conf` al servidor.
+3. HSTS de Caddy a un año (`max-age=31536000`) cuando pase una semana sin problemas, igual que la clínica.
+4. Con el catálogo vacío, Stock dice "No hay insumos que coincidan con la búsqueda": para un cliente nuevo, mejor "Todavía no cargaste insumos" con un link a Insumos.
 
 ---
 
