@@ -106,4 +106,9 @@ jobs:
       # se sube a ningún lado: solo se comprueba que se puede armar y que
       # trae lo que tiene que traer (y no la semilla).
       - run: git archive --format=tar HEAD | docker build -t panaderia-api:ci -
-      - run: docker run --rm panaderia-api:ci sh -c 'test -f dist/main.js && test -f dist/alta/alta-cli.js && test -f web/index.html && test ! -e prisma/seed.ts && test ! -e prisma/semilla.ts'
+      - run: docker run --rm panaderia-api:ci sh -c 'test -f dist/main.js && test -f dist/alta/alta-cli.js && test -f dist/migraciones/migrar-cli.js && test -f web/index.html && test ! -e prisma/seed.ts && test ! -e prisma/semilla.ts'
+      # Que la app, el alta y el migrador CARGUEN con las dependencias podadas
+      # (scripts/podar-dependencias.mjs). Sin base: solo se importan.
+      - run: >-
+          docker run --rm -e DATABASE_URL=postgresql://x:y@localhost:5432/z panaderia-api:ci
+          node -e "await import('./dist/app.js'); await import('./dist/alta/alta.js'); await import('./dist/migraciones/migrador.js'); console.log('carga ok')"

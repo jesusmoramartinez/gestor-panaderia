@@ -32,12 +32,26 @@ RUN pnpm --filter @panaderia/shared build \
 
 # Las dependencias de PRODUCCIÓN de la API, en una carpeta aparte y sin
 # enlaces al resto del monorepo (el paquete compartido queda copiado adentro).
-RUN pnpm --filter @panaderia/api deploy --prod --legacy /salida
+# La CLI de Prisma NO está: es de desarrollo, y podar-dependencias.mjs saca lo
+# que se colaba igual (ver ese script). Las migraciones las aplica
+# dist/migraciones/migrar-cli.js (ver src/migraciones/migrador.ts).
+#
+# Y el cliente de Prisma trae el motor de consultas para cinco bases de datos
+# (unos 13 MB cada uno); esta app usa solo PostgreSQL. La prueba de la imagen
+# (CI y docs/deploy-vps.md) corre consultas de verdad: si un día faltara algo,
+# falla ahí y no en el servidor.
+RUN pnpm --filter @panaderia/api deploy --prod --legacy /salida \
+ && node scripts/podar-dependencias.mjs /salida \
+ && find /salida/node_modules/.pnpm -path '*/@prisma/client/runtime/*' \
+      \( -name '*mysql*' -o -name '*sqlserver*' -o -name '*sqlite*' -o -name '*cockroachdb*' \) -delete
 
 # ---------------------------------------------------------------------------
 # 2. LA IMAGEN FINAL: solo lo necesario para correr.
 # ---------------------------------------------------------------------------
 FROM node:26.8.2-alpine
+# npm y corepack vienen en la imagen de Node; acá no se instala nada.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 ENV NODE_ENV=production \
     PORT=3000 \
     WEB_DIR=/app/web \
@@ -46,14 +60,12 @@ WORKDIR /app
 
 COPY --from=compilar /salida/node_modules node_modules
 COPY --from=compilar /salida/package.json package.json
-# Lo compilado de src/ (la API y el alta). LISTA EXPLÍCITA, como en la
+# Lo compilado de src/ (la API, el alta y el migrador). LISTA EXPLÍCITA, como en la
 # clínica: la semilla (prisma/seed.ts, semilla*.ts), que crea usuarios con la
 # contraseña de desarrollo, NO entra. Un archivo nuevo de prisma/ no viaja
 # salvo que se agregue acá a propósito.
 COPY --from=compilar /repo/apps/api/dist dist
-COPY --from=compilar /repo/apps/api/prisma/schema.prisma prisma/schema.prisma
 COPY --from=compilar /repo/apps/api/prisma/migrations prisma/migrations
-COPY --from=compilar /repo/apps/api/prisma.config.ts prisma.config.ts
 COPY --from=compilar /repo/apps/web/dist web
 
 # Usuario sin privilegios (lo trae la imagen de Node): si alguien rompiera la
@@ -62,5 +74,6 @@ USER node
 EXPOSE 3000
 
 # Las migraciones NO corren al arrancar: las corre actualizar.sh antes de
-# activar la versión, con un backup previo (ver infra/servidor/panaderia).
+# activar la versión, con un backup previo (ver infra/servidor/panaderia):
+#   node dist/migraciones/migrar-cli.js
 CMD ["node", "dist/main.js"]

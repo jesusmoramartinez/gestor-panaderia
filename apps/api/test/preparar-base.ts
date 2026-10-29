@@ -1,4 +1,3 @@
-import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -6,14 +5,16 @@ import { Client, Pool } from 'pg';
 
 import { sembrar } from '../prisma/semilla.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { aplicarMigraciones } from '../src/migraciones/migrador.js';
 
 /**
  * Preparación global de los tests (corre UNA vez, antes de todo).
  *
  * 1. Borra y vuelve a crear la base `panaderia_test`.
- * 2. Aplica las migraciones ejecutando el SQL real, en orden. No usamos el CLI
- *    de Prisma a propósito: así los tests verifican que el SQL que vamos a
- *    aplicar en producción funciona de verdad sobre una base vacía.
+ * 2. Aplica las migraciones con el MISMO migrador que usa el servidor
+ *    (src/migraciones/migrador.ts), no con la CLI de Prisma: así cada corrida
+ *    de tests verifica que lo que se aplica en producción funciona de verdad
+ *    sobre una base vacía.
  * 3. Carga la semilla (las dos empresas).
  *
  * Partir de cero en cada corrida es lo que hace que los tests sean
@@ -45,9 +46,7 @@ export default async function prepararBase(): Promise<void> {
   const cliente = new Client({ connectionString: urlPrueba });
   await cliente.connect();
   try {
-    for (const sql of await leerMigraciones()) {
-      await cliente.query(sql);
-    }
+    await aplicarMigraciones(cliente, CARPETA_MIGRACIONES);
   } finally {
     await cliente.end();
   }
@@ -64,18 +63,10 @@ export default async function prepararBase(): Promise<void> {
   }
 }
 
-/** Lee los migration.sql en orden cronológico (el nombre empieza con la fecha). */
-async function leerMigraciones(): Promise<string[]> {
-  const raiz = join(dirname(new URL(import.meta.url).pathname), '..', 'prisma', 'migrations');
-  const entradas = await readdir(raiz, { withFileTypes: true });
-  const carpetas = entradas
-    .filter((entrada) => entrada.isDirectory())
-    .map((entrada) => entrada.name)
-    .sort();
-
-  const sqls: string[] = [];
-  for (const carpeta of carpetas) {
-    sqls.push(await readFile(join(raiz, carpeta, 'migration.sql'), 'utf8'));
-  }
-  return sqls;
-}
+/** La carpeta de las migraciones, la misma que usa la CLI de Prisma. */
+export const CARPETA_MIGRACIONES = join(
+  dirname(new URL(import.meta.url).pathname),
+  '..',
+  'prisma',
+  'migrations',
+);

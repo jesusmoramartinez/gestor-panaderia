@@ -168,6 +168,37 @@ lista de `docs/deploy-vps.md`.
 
 ---
 
+## 6. Achicar la imagen: de 715 a 306 MB
+
+La imagen viaja entera por SSH en cada deploy, así que su tamaño importa. Al
+medir qué ocupaba lugar, el 60 % era la **CLI de Prisma** y lo que arrastra:
+Prisma Studio (una app web entera), PGlite (un Postgres que corre en
+JavaScript), TypeScript y `effect`. ¿Para qué estaba? Solo para correr
+`prisma migrate deploy`: aplicar diez archivos SQL.
+
+Dos cambios:
+
+1. **Un migrador propio** (`src/migraciones/migrador.ts`, 150 líneas). Hace
+   lo mismo que `migrate deploy` y es **compatible** con Prisma: anota cada
+   migración en la misma tabla `_prisma_migrations`, con el mismo checksum
+   (el sha256 del archivo; se verificó contra la base de desarrollo) y el
+   mismo candado. El test lo prueba contra la CLI de verdad: después de
+   migrar con lo nuestro, `prisma migrate status` dice "up to date". Y antes
+   de confiar en ese test, se comprobó que **puede fallar**: contra una base
+   sin migrar, dice "have not yet been applied".
+2. **Podar lo que no se usa** (`scripts/podar-dependencias.mjs`). Sacar la
+   CLI de las dependencias no alcanzó: `@prisma/client` la declara como
+   dependencia _opcional_ y pnpm la enlazaba igual. En vez de borrar paquetes
+   por nombre (se rompe el día que Prisma agregue uno), el script recorre el
+   árbol desde lo que la app usa de verdad y borra lo que no se alcanza. La
+   regla se explica sola: **lo que la app no puede alcanzar, no viaja**.
+
+Quedó `node_modules` en 38 MB (eran 344). El resto de los 306 MB es la imagen
+base de Node. El CI importa la app, el alta y el migrador dentro de la imagen
+podada: si algún día falta algo, falla al armarla, no en el servidor.
+
+---
+
 ## Resumen en una línea por idea
 
 - En un servidor propio hay un proceso siempre prendido: menos trucos, más
@@ -179,3 +210,4 @@ lista de `docs/deploy-vps.md`.
 - Un build no puede depender de qué archivos había por ahí.
 - Para Compose, un contenedor es "proyecto + servicio".
 - El deploy se ensaya antes, con los mismos archivos.
+- Lo que la app no puede alcanzar, no viaja en la imagen.

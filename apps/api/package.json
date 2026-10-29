@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "migrar": "tsx --env-file-if-exists=../../.env src/migraciones/migrar-cli.ts",
     "db:seed": "tsx --env-file=../../.env prisma/seed.ts",
     "e2e:servidor": "tsx test/servidor-e2e.ts",
     "alta": "tsx --env-file-if-exists=../../.env src/alta/alta-cli.ts",
@@ -29,7 +30,6 @@
     "pg": "^8.23.1",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
-    "prisma": "7.10.0",
     "zod": "catalog:"
   },
   "devDependencies": {
@@ -37,6 +37,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "@types/pg": "^8.23.1",
+    "prisma": "7.10.0",
     "tsx": "^4.23.15",
     "typescript": "catalog:",
     "vitest": "catalog:"
