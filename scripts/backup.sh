@@ -6,7 +6,9 @@
 # Uso:
 #   DATABASE_URL=postgresql://... ./scripts/backup.sh [carpeta]
 #
-# Sin DATABASE_URL, usa la del .env (la base de desarrollo).
+# Sin DATABASE_URL, usa la del .env (la base de desarrollo). En el VPS no se
+# usa este script: allá la base no tiene puertos, y el backup lo hace
+# /srv/panaderia/actualizar.sh antes de cada deploy (ver docs/deploy-vps.md).
 # La carpeta por defecto es ./backups (está en .gitignore: un backup con datos
 # reales NUNCA va al repositorio).
 #
@@ -18,7 +20,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 CARPETA="${1:-backups}"
-PG_IMAGEN="${PG_IMAGEN:-postgres:18}"
+PG_IMAGEN="${PG_IMAGEN:-postgres:18.6-alpine}"
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
   # shellcheck disable=SC1091
@@ -30,8 +32,8 @@ HOY="$(date +%F)"
 ARCHIVO="$CARPETA/diarios/panaderia-$HOY.dump"
 
 echo "[backup] volcando la base en $ARCHIVO ..."
-# --schema=public: solo nuestras tablas. En Supabase hay otros esquemas
-#   (auth, storage...) que son de la plataforma y no se restauran nosotros.
+# --schema=public: solo nuestras tablas (y si algún día la base vive en un
+#   servicio administrado, sus esquemas propios no se mezclan).
 # --no-owner --no-privileges: el backup no depende de qué usuario lo creó,
 #   así se puede restaurar en otra base, con otro usuario.
 # --user: el archivo queda a nombre tuyo y no de root (si no, la retención de

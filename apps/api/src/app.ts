@@ -2,6 +2,7 @@ import cookieParser from 'cookie-parser';
 import express, { type ErrorRequestHandler, type Express } from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { pinoHttp } from 'pino-http';
 
@@ -98,8 +99,7 @@ export const manejarError: ErrorRequestHandler = (error, req, res, _next) => {
 /**
  * Arma la aplicación de Express pero NO la pone a escuchar.
  * Separar "armar" de "escuchar" permite que los tests creen la app y la
- * levanten en un puerto libre sin tocar el servidor de desarrollo, y que
- * Vercel la use como función (api/index.ts) sin `listen`.
+ * levanten en un puerto libre sin tocar el servidor de desarrollo.
  */
 // El tipo de retorno va anotado a mano: con `declaration: true` TypeScript
 // tiene que poder nombrar el tipo en el .d.ts que genera, y el tipo inferido
@@ -107,20 +107,48 @@ export const manejarError: ErrorRequestHandler = (error, req, res, _next) => {
 export function crearApp(): Express {
   const app = express();
 
-  // Detrás de un proxy (Vercel), la IP real viene en X-Forwarded-For. Ver
+  // Detrás de un proxy (Caddy, en el VPS), la IP real viene en X-Forwarded-For. Ver
   // TRUST_PROXY en config/env.schema.ts: sin esto, el limitador vería a
   // todos los usuarios como una sola IP.
   app.set('trust proxy', env.TRUST_PROXY ? 1 : false);
 
-  // CABECERAS DE SEGURIDAD (helmet). Las más importantes para esta API:
-  //   - Strict-Transport-Security: "hablame solo por HTTPS", por un año;
-  //   - X-Content-Type-Options: nosniff, para que el navegador no
-  //     "adivine" que un JSON es un script;
-  //   - Content-Security-Policy y X-Frame-Options: nadie puede meter la API
-  //     en un <iframe> de otro sitio (clickjacking);
+  // CABECERAS DE SEGURIDAD (helmet). Valen para la API y para las pantallas,
+  // que desde el VPS también salen de acá:
+  //   - Content-Security-Policy: solo corre el JavaScript que viene de este
+  //     mismo sitio, en archivos. Un script inyectado (XSS) no se ejecuta.
+  //     Es la misma política que ya probaba Playwright contra el build.
+  //   - Strict-Transport-Security: "hablame solo por HTTPS". Arranca en un
+  //     día, como la clínica: si algo sale mal con el certificado, el
+  //     navegador no queda atado un año.
+  //   - X-Content-Type-Options: nosniff, para que el navegador no "adivine"
+  //     que un JSON es un script;
   //   - saca X-Powered-By: Express (no regalar qué tecnología se usa).
-  // Las del front (el HTML de Vite) las pone Vercel: ver vercel.json.
-  app.use(helmet());
+  // Caddy pone además las mismas cabeceras que en la clínica y, donde
+  // coinciden, gana la de Caddy (ver infra/servidor/caddy/Caddyfile).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:'],
+          fontSrc: ["'self'"],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      strictTransportSecurity: { maxAge: 86_400, includeSubDomains: false },
+    }),
+  );
+  app.use((_req, res, next) => {
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    next();
+  });
 
   // Una línea de log por pedido, con su id, su duración y su status.
   app.use(
@@ -173,7 +201,18 @@ export function crearApp(): Express {
   app.use('/api', transferenciasRouter);
   app.use('/api', reposicionRouter);
 
-  // Cualquier otra ruta: 404 con la misma forma que el resto de los errores.
+  // Una ruta de la API que no existe: 404 con la misma forma que el resto de
+  // los errores (y nunca el index.html de la web, que confundiría al front).
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe' });
+  });
+
+  // LAS PANTALLAS (solo si WEB_DIR está: en el VPS y en Playwright).
+  if (env.WEB_DIR !== undefined) {
+    servirWeb(app, env.WEB_DIR);
+  }
+
+  // Cualquier otra ruta: 404.
   app.use((_req, res) => {
     res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'La ruta no existe' });
   });
@@ -181,4 +220,39 @@ export function crearApp(): Express {
   app.use(manejarError);
 
   return app;
+}
+
+/**
+ * Sirve la web compilada por Vite.
+ *
+ * - /assets/*: los archivos llevan un hash en el nombre (index-3f9a1c.js), así
+ *   que el mismo nombre es siempre el mismo contenido: el navegador los
+ *   guarda un año sin volver a preguntar.
+ * - index.html: nunca se guarda. Es lo que apunta a los assets de la versión
+ *   nueva: si quedara viejo en la caché, después de un deploy el navegador
+ *   seguiría pidiendo los archivos de la versión anterior.
+ * - Cualquier otra ruta (/stock, /compras/123) devuelve index.html: es una
+ *   SPA, y la ruta la resuelve React Router en el navegador. Sin esto,
+ *   recargar la página en /stock daría 404.
+ */
+function servirWeb(app: Express, carpeta: string): void {
+  const indice = join(carpeta, 'index.html');
+  const sinCache = 'no-cache';
+
+  app.use('/assets', express.static(join(carpeta, 'assets'), { immutable: true, maxAge: '1y' }));
+  // Un asset que no existe es un 404, no el index.html (el navegador lo
+  // intentaría ejecutar como JavaScript).
+  app.use('/assets', (_req, res) => {
+    res.status(404).json({ codigo: 'NO_ENCONTRADO', mensaje: 'El archivo no existe' });
+  });
+  app.use(
+    express.static(carpeta, {
+      index: false,
+      setHeaders: (res) => res.setHeader('Cache-Control', sinCache),
+    }),
+  );
+  app.get('/{*ruta}', (_req, res) => {
+    res.setHeader('Cache-Control', sinCache);
+    res.sendFile(indice);
+  });
 }

@@ -13,7 +13,7 @@ Sistema web de gestión para una panadería con **dos sucursales**: una **centra
 
 El sistema está pensado para **venderse después a otras panaderías**, así que es **multi-empresa** desde el primer día: todas las tablas de negocio llevan `empresa_id` y los datos de una empresa nunca pueden verse desde otra.
 
-**Etapa actual: control de stock de materia prima (insumos).** Fases 0 a 10 cerradas y la 11 lista para desplegar (Vercel + Supabase, falta que el cliente cree las cuentas: `docs/deploy-vercel-supabase.md`): el stock se calcula desde el kardex, se ajusta contra lo contado, entra por compras (orden → recepción total o parcial) con costo promedio ponderado, se mueve entre sucursales con transferencias en dos pasos, y la reposición dice qué traer de la Central y qué comprar. Las respuestas del cliente a las preguntas C-1 a C-19 están en `PLAN.md` §5.1, y la investigación sobre cómo compra sus insumos una panadería, en §5.2.
+**Etapa actual: control de stock de materia prima (insumos).** Fases 0 a 10 cerradas y la 11 lista para desplegar en el **VPS de DigitalOcean** que ya corre la clínica (Docker + Caddy, `panaderia-j.duckdns.org`; paso a paso en `docs/deploy-vps.md`, la configuración del servidor en el repo `infra`): el stock se calcula desde el kardex, se ajusta contra lo contado, entra por compras (orden → recepción total o parcial) con costo promedio ponderado, se mueve entre sucursales con transferencias en dos pasos, y la reposición dice qué traer de la Central y qué comprar. Las respuestas del cliente a las preguntas C-1 a C-19 están en `PLAN.md` §5.1, y la investigación sobre cómo compra sus insumos una panadería, en §5.2.
 
 Incluye: empresa/sucursales/usuarios con roles · catálogo de insumos con unidades y conversiones · proveedores · compras con recepción total o parcial · stock por sucursal basado en movimientos (kardex) · consumo manual · conteo físico y ajustes · mermas · transferencias entre sucursales · alertas de stock bajo y vista de reposición · historial de movimientos.
 
@@ -104,6 +104,7 @@ Estas palabras se usan **en español en el código** (tablas, campos, tipos, fun
 | Sesiones          | **cookie httpOnly + tabla `sesion`** | Sin JWT: la sesión se puede revocar. Token aleatorio, guardado hasheado con SHA-256.                                                                                                                                                                      |
 | Contraseñas       | **`crypto.scrypt`** (nativo)         | Sin dependencias. Los parámetros de costo viajan dentro del hash.                                                                                                                                                                                         |
 | Decimales         | **`decimal.js`**                     | La misma librería que Prisma empaqueta. El tipo `Numerico = Decimal \| string` NO acepta `number`.                                                                                                                                                        |
+| Producción        | **Docker + Caddy en un VPS**         | Una imagen (`Dockerfile`) con la API, que también sirve las pantallas; su propio PostgreSQL 18.6 en una red interna; Caddy pone el HTTPS. Ver `docs/deploy-vps.md`.                                                                                       |
 
 ---
 
@@ -167,12 +168,12 @@ Si una función necesita `req`, no es un servicio. Si un servicio necesita saber
 
 Hay dos clases y viven en lugares distintos:
 
-| Clase                   | Dónde                                | Qué prueba                                                                                                                                                                                                                                                       |
-| ----------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Unitario**            | junto al archivo, `loquesea.test.ts` | Lógica pura: conversiones, CPP, hashing, el limitador de intentos. Sin base de datos.                                                                                                                                                                            |
-| **Punta a punta (e2e)** | `e2e/pruebas/`                       | Un navegador de verdad (Playwright, Chromium) usa la aplicación de verdad: front + API + una base aparte (`panaderia_e2e`), a 768×1024. Es lo único que ve lo que ve una persona. Corre con `pnpm test:e2e` y levanta todo solo, en otros puertos (3100 y 5174). |
-| **Integración**         | `apps/api/test/`                     | La API de punta a punta: levanta Express en un puerto libre, usa cookies y pega contra una base **aparte** (`panaderia_test`), que se borra y se vuelve a crear en cada corrida.                                                                                 |
-| **Punta a punta (e2e)** | `e2e/pruebas/`                       | Un navegador de verdad (Playwright, Chromium) usa la aplicación de verdad: front + API + una base aparte (`panaderia_e2e`), a 768×1024. Es lo único que ve lo que ve una persona. `pnpm test:e2e` levanta todo solo en otros puertos (API 3100, web 5174).       |
+| Clase                   | Dónde                                | Qué prueba                                                                                                                                                                                                                                                                                              |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unitario**            | junto al archivo, `loquesea.test.ts` | Lógica pura: conversiones, CPP, hashing, el limitador de intentos. Sin base de datos.                                                                                                                                                                                                                   |
+| **Punta a punta (e2e)** | `e2e/pruebas/`                       | Un navegador de verdad (Playwright, Chromium) usa la aplicación de verdad: front + API + una base aparte (`panaderia_e2e`), a 768×1024. Es lo único que ve lo que ve una persona. Corre con `pnpm test:e2e` y levanta todo solo: la API en el puerto 3100 sirviendo el build de la web, como en el VPS. |
+| **Integración**         | `apps/api/test/`                     | La API de punta a punta: levanta Express en un puerto libre, usa cookies y pega contra una base **aparte** (`panaderia_test`), que se borra y se vuelve a crear en cada corrida.                                                                                                                        |
+| **Punta a punta (e2e)** | `e2e/pruebas/`                       | Un navegador de verdad (Playwright, Chromium) usa la aplicación de verdad: front + API + una base aparte (`panaderia_e2e`), a 768×1024. Es lo único que ve lo que ve una persona. `pnpm test:e2e` levanta todo solo: la API en el 3100 sirviendo el build de la web, como en el VPS.                    |
 
 - Los tests de integración necesitan Postgres levantado (`pnpm db:up`).
 - Cada regla de negocio escrita en `PLAN.md` tiene que tener su test.
@@ -200,8 +201,8 @@ Hay dos clases y viven en lugares distintos:
 14. **Auditar todo lo que se puede modificar**, en la misma transacción que el cambio. Los movimientos de stock NO se auditan (ya son inmutables y llevan usuario y fecha); sí se audita lo excepcional: forzar el stock en negativo.
 15. **Todo valor derivado tiene una función que lo reconstruye desde los hechos**, y se actualiza reconstruyéndolo, nunca sumando o restando sobre lo guardado: el stock (suma de movimientos), lo recibido de una orden (suma de recepciones confirmadas), el costo promedio (`recalcularCostoPromedio`).
 16. **Un movimiento que nació de un documento se corrige desde el documento.** Una `COMPRA` se anula anulando su recepción; lo de una transferencia, anulando la transferencia. Nunca desde el historial.
-17. **Toda tabla nueva lleva RLS** (`ALTER TABLE … ENABLE ROW LEVEL SECURITY` en su migración). En Supabase, sin RLS, la tabla queda expuesta por su API REST pública. Lo vigila `test/seguridad-base.test.ts`.
-18. **La semilla es solo para desarrollo** (se niega a correr contra una base que no sea local). En producción, el alta: `pnpm --filter @panaderia/api alta empresa|usuario`.
+17. **Toda tabla nueva lleva RLS** (`ALTER TABLE … ENABLE ROW LEVEL SECURITY` en su migración). Nació para Supabase (que publica las tablas por una API REST pública); en el VPS queda como segunda barrera: si otro rol se conecta a la base algún día, no ve nada que no se le haya dado. Lo vigila `test/seguridad-base.test.ts`.
+18. **La semilla es solo para desarrollo** (se niega a correr contra una base que no sea local, y **no entra en la imagen de Docker**: el Dockerfile copia una lista explícita). En producción, el alta (`src/alta/`), que corre dentro del contenedor: `docs/deploy-vps.md` paso 5.
 19. **Candado de una fila que es destino de claves foráneas: `FOR NO KEY UPDATE`**, no `FOR UPDATE`, si solo se van a cambiar columnas que no son la clave. Insertar una fila hija le pone al padre un candado `FOR KEY SHARE`, y `FOR UPDATE` choca con él (abrazo mortal reproducido en `compras.test.ts`).
 
 ---
@@ -233,10 +234,11 @@ pnpm test                       # los de integración necesitan `pnpm db:up`
 pnpm check                      # las tres de una
 pnpm test:e2e                   # Playwright: el navegador contra la app (necesita `pnpm db:up`)
 
-# Backups y producción (ver docs/operacion.md y docs/deploy-vercel-supabase.md)
-pnpm db:backup                  # pg_dump con retención (7 diarios + 4 semanales) en backups/
-pnpm db:restaurar <archivo> <base_nueva>   # restaura en una base NUEVA
-pnpm --filter @panaderia/api alta empresa|usuario <archivo.json>   # alta de producción
+# Backups y producción (ver docs/operacion.md y docs/deploy-vps.md)
+pnpm db:backup                  # pg_dump de la base LOCAL con retención (7 diarios + 4 semanales)
+pnpm db:restaurar <archivo> <base_nueva>   # restaura en una base NUEVA (local)
+pnpm --filter @panaderia/api alta empresa|usuario <archivo.json>   # alta (local; en el VPS, ver deploy-vps.md)
+pnpm run deploy:vps             # arma la imagen desde GitHub, la manda al VPS y la activa (backup previo)
 # La primera vez: pnpm --filter @panaderia/e2e exec playwright install chromium
 # Informe con capturas y trazas: pnpm --filter @panaderia/e2e exec playwright show-report informe
 ```

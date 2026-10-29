@@ -1,9 +1,8 @@
 import type { UsuarioSesion } from '@panaderia/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { darDeAltaEmpresa, darDeAltaUsuario } from '../prisma/alta.js';
-import { MOTIVOS, UNIDADES } from '../prisma/semilla.js';
-import { CATEGORIAS } from '../prisma/semilla-insumos.js';
+import { darDeAltaEmpresa, darDeAltaUsuario } from '../src/alta/alta.js';
+import { CATEGORIAS, MOTIVOS, UNIDADES } from '../src/alta/catalogo-base.js';
 import { cerrarConexiones, prisma } from '../src/lib/db.js';
 import { reiniciarLimitadores } from '../src/modules/auth/service.js';
 import { ClienteHttp } from './cliente-http.js';

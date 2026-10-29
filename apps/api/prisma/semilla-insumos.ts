@@ -28,19 +28,6 @@ export type DefinicionInsumo = {
   minimos: Readonly<Record<string, string>>;
 };
 
-export const CATEGORIAS = [
-  'Harinas',
-  'Levaduras y mejoradores',
-  'Sal y condimentos',
-  'Azúcares',
-  'Grasas y aceites',
-  'Lácteos',
-  'Huevos',
-  'Rellenos y coberturas',
-  'Semillas y frutos secos',
-  'Envases y descartables',
-] as const;
-
 export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   // --- Harinas
   {

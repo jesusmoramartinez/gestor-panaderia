@@ -5,7 +5,9 @@
  *
  *   1. Borra, migra y siembra la base `panaderia_e2e` (la misma preparación
  *      que usan los tests de integración, con otra base).
- *   2. Recién ahí arranca la API, apuntando a esa base y en el puerto 3100.
+ *   2. Recién ahí arranca la API, apuntando a esa base y en el puerto 3100,
+ *      sirviendo también la web compilada (apps/web/dist): igual que en el
+ *      VPS, pantallas y API salen del mismo proceso, con las mismas cabeceras.
  *
  * Una base APARTE porque estas pruebas usan la aplicación de verdad: crean
  * compras, mandan transferencias. Si corrieran contra la base de desarrollo,
@@ -45,4 +47,5 @@ process.env['DATABASE_URL'] = urlE2e;
 process.env['PORT'] = process.env['PORT_E2E'] ?? '3100';
 process.env['NODE_ENV'] = 'test';
 process.env['LIMITE_PEDIDOS_POR_MINUTO'] = '0';
+process.env['WEB_DIR'] = new URL('../../web/dist', import.meta.url).pathname;
 await import('../src/main.js');

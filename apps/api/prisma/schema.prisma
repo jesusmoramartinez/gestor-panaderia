@@ -11,6 +11,12 @@ generator client {
   // y pide que le digas dónde ponerlo (antes escribía en node_modules).
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // Los imports del código generado terminan en .js, que es lo que Node
+  // encuentra en dist/. Va fijo porque, si no, Prisma lo deduce del
+  // tsconfig.json, y al armar la imagen de Docker el `prisma generate` corre
+  // antes de que el tsconfig esté: generaba "./enums.ts" y la API compilada
+  // no arrancaba (lo encontró la prueba de la imagen).
+  importFileExtension = "js"
 }
 
 datasource db {

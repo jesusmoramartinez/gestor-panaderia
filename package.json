@@ -11,7 +11,6 @@
   "scripts": {
     "dev": "pnpm --filter @panaderia/shared build && pnpm -r --parallel dev",
     "build": "pnpm -r build",
-    "build:vercel": "./scripts/migrar-en-vercel.sh && pnpm --filter @panaderia/shared build && pnpm --filter @panaderia/api build && pnpm --filter @panaderia/web build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "lint": "eslint .",
@@ -30,7 +29,8 @@
     "db:studio": "pnpm --filter @panaderia/api db:studio",
     "db:reset": "pnpm --filter @panaderia/api db:reset",
     "db:backup": "./scripts/backup.sh",
-    "db:restaurar": "./scripts/restaurar.sh"
+    "db:restaurar": "./scripts/restaurar.sh",
+    "deploy:vps": "./scripts/deploy.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

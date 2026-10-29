@@ -6,9 +6,10 @@
 # casualidad (un archivo sin commitear, una dependencia instalada a mano, un
 # .env que nadie más tiene).
 #
-# El Postgres de acá es la versión 17, la misma que usa Supabase en
-# producción (en desarrollo usamos la 18): así cada push verifica también que
-# las migraciones funcionan en la versión de producción.
+# El Postgres de acá es exactamente el del VPS (postgres:18.6-alpine): cada
+# push verifica que las migraciones funcionan en la versión de producción.
+# Y el último trabajo arma la imagen de Docker: si el Dockerfile se rompe, se
+# sabe acá y no el día del deploy.
 # =============================================================================
 name: CI
 
@@ -32,7 +33,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18.6-alpine
         env:
           POSTGRES_USER: panaderia
           POSTGRES_PASSWORD: panaderia_ci
@@ -66,7 +67,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18.6-alpine
         env:
           POSTGRES_USER: panaderia
           POSTGRES_PASSWORD: panaderia_ci
@@ -93,3 +94,16 @@ jobs:
           name: informe-playwright
           path: e2e/informe/
           retention-days: 7
+
+  imagen:
+    name: Imagen de Docker
+    needs: verificar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      # Se arma igual que en scripts/deploy.sh (desde lo versionado), pero no
+      # se sube a ningún lado: solo se comprueba que se puede armar y que
+      # trae lo que tiene que traer (y no la semilla).
+      - run: git archive --format=tar HEAD | docker build -t panaderia-api:ci -
+      - run: docker run --rm panaderia-api:ci sh -c 'test -f dist/main.js && test -f dist/alta/alta-cli.js && test -f web/index.html && test ! -e prisma/seed.ts && test ! -e prisma/semilla.ts'

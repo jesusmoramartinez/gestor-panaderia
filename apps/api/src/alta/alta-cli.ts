@@ -1,15 +1,16 @@
 /**
  * Alta de producción por línea de comandos. Ver docs/operacion.md.
  *
- *   ALTA_PASSWORD='...' pnpm --filter @panaderia/api alta empresa ruta/empresa.json
- *   ALTA_PASSWORD='...' pnpm --filter @panaderia/api alta usuario ruta/usuario.json
+ *   En desarrollo:
+ *     ALTA_PASSWORD='...' pnpm --filter @panaderia/api alta empresa ruta/empresa.json
+ *   En el servidor (dentro de la imagen, compilado):
+ *     node dist/alta/alta-cli.js empresa|usuario /ruta/al.json
  *
- * La base es la de DATABASE_URL (o DIRECT_URL, si está). Hay ejemplos de los
- * JSON en docs/ejemplos/.
+ * La base es la de DATABASE_URL. Hay ejemplos de los JSON en docs/ejemplos/.
  */
 import { readFileSync } from 'node:fs';
 
-import { cerrarConexiones, prisma } from '../src/lib/db.js';
+import { cerrarConexiones, prisma } from '../lib/db.js';
 import { darDeAltaEmpresa, darDeAltaUsuario } from './alta.js';
 
 const [que, archivo] = process.argv.slice(2);

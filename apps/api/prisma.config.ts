@@ -33,12 +33,9 @@ export default defineConfig({
     seed: 'tsx --env-file=../../.env prisma/seed.ts',
   },
   datasource: {
-    // Las MIGRACIONES van por una conexión DIRECTA a Postgres. En Supabase, la
-    // API usa el pooler en modo "transaction" (DATABASE_URL, puerto 6543),
-    // que reparte conexiones entre muchas funciones de Vercel; pero una
-    // migración necesita una sesión entera para ella sola. Para eso está
-    // DIRECT_URL (el pooler en modo "session", puerto 5432). En desarrollo no
-    // hace falta: si no está, se usa DATABASE_URL.
-    url: process.env['DIRECT_URL'] ?? process.env['DATABASE_URL'],
+    // En el VPS la variable llega del entorno del contenedor (app.env), no
+    // de un archivo .env: por eso el loadEnvFile de arriba puede fallar sin
+    // problema.
+    url: process.env['DATABASE_URL'],
   },
 });

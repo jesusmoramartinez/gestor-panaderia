@@ -10,11 +10,9 @@ import { LimitadorIntentos } from '../lib/limitador.js';
  *
  * Reusa el limitador de ventana deslizante del login.
  *
- * OJO EN VERCEL: cada función tiene su propia memoria, así que este contador
- * es por instancia, no global. Ahí el freno de verdad es el firewall de
- * Vercel (una regla de "rate limit"), configurado en la guía de despliegue.
- * Este middleware queda como segunda línea, y es el freno real si algún día
- * la API corre en un servidor propio.
+ * El contador vive en la memoria del proceso. En el VPS hay un solo proceso
+ * de la API, así que es el freno real (se reinicia con cada deploy, y está
+ * bien: es un freno contra ráfagas, no un registro).
  */
 export function limitarPedidos(porMinuto: number): RequestHandler {
   if (porMinuto === 0) {

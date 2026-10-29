@@ -20,10 +20,9 @@
 import { CrearUsuarioSchema, PasswordNuevaSchema, RolSchema } from '@panaderia/shared';
 import { z } from 'zod';
 
-import type { PrismaClient } from '../src/generated/prisma/client.js';
-import { hashearPassword } from '../src/lib/password.js';
-import { MOTIVOS, UNIDADES } from './semilla.js';
-import { CATEGORIAS } from './semilla-insumos.js';
+import type { PrismaClient } from '../generated/prisma/client.js';
+import { hashearPassword } from '../lib/password.js';
+import { CATEGORIAS, MOTIVOS, UNIDADES } from './catalogo-base.js';
 
 const CodigoSucursal = z
   .string()

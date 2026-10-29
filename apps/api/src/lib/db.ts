@@ -15,7 +15,7 @@ import { PrismaClient } from '../generated/prisma/client.js';
  */
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  // 10 en un servidor propio; 1 en Vercel (ver DB_POOL_MAX en env.schema.ts).
+  // Ver DB_POOL_MAX en env.schema.ts.
   max: env.DB_POOL_MAX,
   // Si la base no responde en 5s, fallar con un error claro en lugar de
   // dejar el pedido colgado para siempre.

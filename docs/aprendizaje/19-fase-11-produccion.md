@@ -1,5 +1,11 @@
 # Fase 11: de "anda en mi máquina" a producción
 
+> **Actualización (29/10/2026):** el despliegue cambió de Vercel + Supabase a
+> un **VPS propio** (el de la clínica). Lo de esta nota sigue valiendo como
+> idea (12-factor, logs, CSP, backups probados, RLS), pero las partes de
+> Vercel, del pooler y de `vercel.json` quedaron como historia. Lo nuevo está
+> en la nota 20.
+
 _Escrita después de preparar la Fase 11. El sistema no está desplegado todavía
 (las cuentas de Vercel y Supabase las crea el cliente; ver
 `docs/deploy-vercel-supabase.md`), pero todo lo que depende del código está

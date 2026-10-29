@@ -6,13 +6,13 @@ import { env } from '../config/env.js';
  * EL LOGGER de la API (pino).
  *
  * Escribe UNA línea JSON por evento, en la salida estándar. JSON y no texto
- * libre porque en producción los logs los lee una máquina (el panel de
- * Vercel, una búsqueda): `{"level":50,"idPedido":"…","msg":"…"}` se puede
+ * libre porque en producción los logs los lee una máquina (`docker compose
+ * logs` filtrado, una búsqueda): `{"level":50,"idPedido":"…","msg":"…"}` se puede
  * filtrar por campo; "[api] algo falló" no.
  *
- * Y a la salida estándar, no a un archivo: en Vercel (y en cualquier
- * plataforma moderna) el disco de la función es descartable, y lo que se
- * escribe en stdout es lo que la plataforma junta y muestra. Es uno de los
+ * Y a la salida estándar, no a un archivo: el disco de un contenedor es
+ * descartable (se borra con cada deploy), y lo que se escribe en stdout es
+ * lo que Docker junta y rota solo (10 MB × 3 por contenedor en el VPS). Es uno de los
  * principios "12-factor": la aplicación no administra sus logs, los emite.
  */
 export const logger = pino({

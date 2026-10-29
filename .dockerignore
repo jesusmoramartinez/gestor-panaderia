@@ -1,0 +1,19 @@
+# Lo que NUNCA entra a la imagen. El deploy arma desde git archive (solo lo
+# versionado), pero esto protege también un "docker build ." hecho a mano.
+.env
+.env.*
+!.env.example
+node_modules
+**/node_modules
+**/dist
+apps/api/src/generated
+backups
+*.dump
+*.sql
+*.sql.gz
+.git
+.github
+.claude
+e2e/informe
+e2e/resultados
+coverage

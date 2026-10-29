@@ -37,22 +37,20 @@ export const EnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
 
   /**
-   * Cuántas conexiones a la base abre CADA proceso de la API.
-   *
-   * En un servidor propio, 10 está bien. En Vercel cada función es un proceso
-   * aparte y puede haber decenas a la vez: con 10 cada una se agotan las
-   * conexiones de Supabase. Ahí va 1 (y la conexión, por el pooler).
+   * Cuántas conexiones a la base abre CADA proceso de la API. En el VPS hay
+   * un solo proceso y la base es solo de la panadería: 10 sobra.
    */
   DB_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
 
   /**
-   * Si la API está detrás de un proxy (Vercel, un balanceador): la IP real
-   * del usuario viene en la cabecera X-Forwarded-For y hay que creerle al
-   * proxy. Sin esto, todos los pedidos parecen venir de la IP del proxy, y el
+   * Si la API está detrás de un proxy (en el VPS, Caddy): la IP real del
+   * usuario viene en la cabecera X-Forwarded-For y hay que creerle al proxy.
+   * Sin esto, todos los pedidos parecen venir de la IP de Caddy, y el
    * limitador de intentos bloquearía a TODOS los usuarios juntos.
    *
    * Solo se activa detrás de un proxy de confianza: si no, cualquiera podría
-   * mandar un X-Forwarded-For falso y esquivar el limitador.
+   * mandar un X-Forwarded-For falso y esquivar el limitador. En el VPS la API
+   * no publica puertos: solo le habla Caddy.
    */
   TRUST_PROXY: z.stringbool().default(false),
 
@@ -61,6 +59,14 @@ export const EnvSchema = z.object({
    * (los tests de integración disparan cientos de pedidos por minuto).
    */
   LIMITE_PEDIDOS_POR_MINUTO: z.coerce.number().int().min(0).default(600),
+
+  /**
+   * Carpeta con la web compilada (apps/web/dist). Si está, la API también
+   * sirve las pantallas: un solo proceso y un solo dominio, como en el VPS
+   * (la imagen la trae en /app/web) y en las pruebas de Playwright. Vacía en
+   * desarrollo: ahí las pantallas las sirve Vite, con recarga en caliente.
+   */
+  WEB_DIR: z.string().min(1).optional(),
 });
 
 // El tipo se DERIVA del esquema: una sola fuente de verdad.

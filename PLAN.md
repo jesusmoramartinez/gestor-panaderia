@@ -24,16 +24,16 @@ Cada vez que aparezca un término técnico nuevo, está explicado en `docs/apren
 
 ## 1. Decisiones ya tomadas
 
-| #   | Decisión             | Elegido                                     | Por qué                                                                                                                                   |
-| --- | -------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Lotes y vencimientos | **No** en esta etapa, diseño preparado      | Seguir lotes obliga a que cada salida elija de qué lote descuenta. Duplica la lógica del kardex antes de que el sistema esté andando.     |
-| 2   | Valuación de stock   | **Costo promedio ponderado (CPP)**          | Permite saber cuánta plata hay en el depósito y cuánto costó una merma. Con inflación, el "último precio" distorsiona y FIFO exige lotes. |
-| 3   | Usuarios             | 1 usuario → 1 empresa, 1 rol, N sucursales  | Cubre el caso real (un encargado que cubre las dos panaderías) sin complicar el chequeo de permisos.                                      |
-| 4   | Idioma del código    | Dominio en español, técnico en inglés       | Hablás con el dueño y con el código con el mismo vocabulario ("merma" no se traduce bien), sin pelear con el ecosistema JavaScript.       |
-| 5   | Flujo de compras     | Orden de compra **opcional**                | En la realidad a veces el proveedor llega con el remito y nadie cargó una orden. Permitir los dos caminos evita órdenes de compra falsas. |
-| 6   | Autenticación        | Sesión en base de datos + cookie `httpOnly` | La cookie no es legible por JavaScript (un ataque XSS no roba la sesión) y la sesión en tabla se puede revocar.                           |
-| 7   | Stock negativo       | Bloqueado, salvo permiso especial           | Protege los datos, pero no traba la operación cuando la realidad no coincide con el sistema. Cada vez que se fuerza, queda registrado.    |
-| 8   | Deploy               | **Vercel + Supabase** (Fase 11)             | Decidido en la Fase 11: Vercel (front + API como función) y Supabase (Postgres 17). Paso a paso en `docs/deploy-vercel-supabase.md`.      |
+| #   | Decisión             | Elegido                                     | Por qué                                                                                                                                                                                                 |
+| --- | -------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Lotes y vencimientos | **No** en esta etapa, diseño preparado      | Seguir lotes obliga a que cada salida elija de qué lote descuenta. Duplica la lógica del kardex antes de que el sistema esté andando.                                                                   |
+| 2   | Valuación de stock   | **Costo promedio ponderado (CPP)**          | Permite saber cuánta plata hay en el depósito y cuánto costó una merma. Con inflación, el "último precio" distorsiona y FIFO exige lotes.                                                               |
+| 3   | Usuarios             | 1 usuario → 1 empresa, 1 rol, N sucursales  | Cubre el caso real (un encargado que cubre las dos panaderías) sin complicar el chequeo de permisos.                                                                                                    |
+| 4   | Idioma del código    | Dominio en español, técnico en inglés       | Hablás con el dueño y con el código con el mismo vocabulario ("merma" no se traduce bien), sin pelear con el ecosistema JavaScript.                                                                     |
+| 5   | Flujo de compras     | Orden de compra **opcional**                | En la realidad a veces el proveedor llega con el remito y nadie cargó una orden. Permitir los dos caminos evita órdenes de compra falsas.                                                               |
+| 6   | Autenticación        | Sesión en base de datos + cookie `httpOnly` | La cookie no es legible por JavaScript (un ataque XSS no roba la sesión) y la sesión en tabla se puede revocar.                                                                                         |
+| 7   | Stock negativo       | Bloqueado, salvo permiso especial           | Protege los datos, pero no traba la operación cuando la realidad no coincide con el sistema. Cada vez que se fuerza, queda registrado.                                                                  |
+| 8   | Deploy               | **VPS propio con Docker + Caddy** (Fase 11) | Primero se eligió Vercel + Supabase; el 29/10/2026 se cambió al VPS de DigitalOcean que ya corre la clínica (sin costo extra, mismo circuito de deploy y backups). Paso a paso en `docs/deploy-vps.md`. |
 
 El detalle de cada decisión, con las alternativas que descartamos, está en `docs/aprendizaje/02-decisiones-de-arranque.md`.
 
@@ -1121,35 +1121,36 @@ Dos consecuencias lindas de ese diseño:
 
 **Decisiones del cliente al arrancar la fase (9 de octubre de 2026):**
 
-| Pregunta               | Respuesta                                                                                                                                                                     |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ¿Dónde se despliega?   | **Vercel** (front y API) y **Supabase** (la base). Las cuentas las crea y paga el cliente más adelante: queda todo listo y un paso a paso (`docs/deploy-vercel-supabase.md`). |
-| ¿Dependencias nuevas?  | **helmet**, **pino** y **pino-http**.                                                                                                                                         |
-| ¿Integración continua? | **Sí**, GitHub Actions.                                                                                                                                                       |
+| Pregunta               | Respuesta                                                                                                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ¿Dónde se despliega?   | ~~Vercel + Supabase~~ → **el VPS de DigitalOcean** donde ya corre la clínica (cambio del 29/10/2026): Docker, Caddy adelante, base propia, `panaderia-j.duckdns.org` (uso interno, sin dominio propio). |
+| ¿Quién sirve la web?   | **La API**, en la misma imagen (29/10/2026): la web y la API de una versión viajan juntas. Las cabeceras de seguridad, en Caddy como la clínica; helmet suma la CSP y HSTS arranca en 1 día.            |
+| ¿Dependencias nuevas?  | **helmet**, **pino** y **pino-http**.                                                                                                                                                                   |
+| ¿Integración continua? | **Sí**, GitHub Actions.                                                                                                                                                                                 |
 
 **Lo que se hizo**
 
 1. Índices con volumen realista: 3 años simulados (75.000 movimientos + 500.000 de otra empresa). Las cuatro consultas principales entran por índice; la más lenta, 14 ms. Ningún índice nuevo.
 2. Logs JSON (pino) con id de pedido (`X-Request-Id`), cookie y contraseñas ocultas; error inesperado → mensaje genérico con el código, detalle completo solo en el log. Un cuerpo inválido es 400 y uno enorme 413 (antes caían como 500).
-3. helmet en la API; cabeceras del front en `vercel.json` (CSP sin scripts en línea, HSTS, sin iframes); límite general de pedidos por IP; cookies `Secure` en producción; `TRUST_PROXY` para la IP real detrás de Vercel. CORS: no hace falta (front y API en el mismo dominio) y queda cerrado.
-4. Configuración de producción documentada en `.env.example` y validada al arrancar (`LOG_LEVEL`, `DB_POOL_MAX`, `TRUST_PROXY`, `LIMITE_PEDIDOS_POR_MINUTO`, `DIRECT_URL`). Secretos fuera del repo.
-5. Migraciones en el build de Vercel con `prisma migrate deploy`, **solo** en producción (las previews no migran) y por conexión directa (`DIRECT_URL`).
-6. **Backups:** `pnpm db:backup` (7 diarios + 4 semanales, verifica que tenga tablas) y `pnpm db:restaurar` (en una base nueva). **Restauración probada:** el simulacro encontró un bug del restore (corregido) y después las 25 tablas quedaron idénticas, con la API andando contra la base restaurada. Backup diario de producción en GitHub Actions, **cifrado** (el repo es público).
+3. helmet en la API, que desde el VPS también sirve la web (CSP sin scripts en línea, HSTS de 1 día, sin iframes) + las cabeceras de Caddy iguales a las de la clínica; límite general de pedidos por IP; cookies `Secure` en producción; `TRUST_PROXY` para la IP real detrás de Caddy. CORS: no hace falta (front y API en el mismo dominio) y queda cerrado.
+4. Configuración de producción documentada en `.env.example` y validada al arrancar (`LOG_LEVEL`, `DB_POOL_MAX`, `TRUST_PROXY`, `LIMITE_PEDIDOS_POR_MINUTO`, `WEB_DIR`). Secretos fuera del repo.
+5. Migraciones con `prisma migrate deploy` desde la imagen nueva, **antes** de activarla y después de un backup (`actualizar.sh`, en el repo `infra`): si fallan, la versión anterior sigue andando.
+6. **Backups:** `pnpm db:backup` (7 diarios + 4 semanales, verifica que tenga tablas) y `pnpm db:restaurar` (en una base nueva). **Restauración probada:** el simulacro encontró un bug del restore (corregido) y después las 25 tablas quedaron idénticas, con la API andando contra la base restaurada. En el VPS: backup automático antes de cada deploy; los periódicos y la copia fuera del servidor son las fases 10a/10b del repo `infra` (compartidas con la clínica).
 7. `docs/operacion.md`: verificar, crear usuarios, backup, restaurar, desplegar, volver atrás, qué no hacer nunca.
-8. CI en GitHub Actions: formato, tipos, lint, tests y Playwright en cada push, contra **Postgres 17** (la versión de Supabase). Playwright corre contra el **build de producción** con las cabeceras de `vercel.json`.
-9. Vercel + Supabase preparados: `vercel.json`, `api/index.js` (probado simulando Vercel), **RLS en todas las tablas** con su test (Supabase publica las tablas por una API REST pública), alta de producción (`pnpm --filter @panaderia/api alta empresa|usuario`) y la semilla bloqueada fuera de la base local.
+8. CI en GitHub Actions: formato, tipos, lint, tests y Playwright en cada push, contra **PostgreSQL 18.6** (la del VPS). Playwright corre contra la **API sirviendo el build de producción**, como en el VPS. Un tercer trabajo arma la imagen de Docker y verifica que no traiga la semilla.
+9. **VPS preparado** (reemplaza lo de Vercel + Supabase, que se borró): `Dockerfile` (lista explícita: la semilla no entra), `scripts/deploy.sh` (imagen desde el commit de GitHub, por SSH), `compose.yaml` + `actualizar.sh` + bloque de Caddy en el repo `infra`, alta de producción compilada dentro de la imagen (`src/alta/`). **Probado en la laptop** con los mismos archivos: primera activación, segundo deploy con backup, alta, Caddy con las cabeceras de la clínica y un navegador recorriendo las pantallas. La prueba encontró que la API compilada no arrancaba (nota 20). RLS en todas las tablas se queda como segunda barrera.
 
 **Terminado cuando** — repasado punto por punto:
 
 - ✅ Borro la base local, restauro el último backup y el sistema arranca con todos los datos. _(En una base nueva, para no borrar los datos de prueba del cliente: 25 tablas idénticas y la API entra y muestra el stock.)_
-- ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(Pendiente: faltan las cuentas. Simulado localmente: función de Vercel en modo producción, cookie `Secure`, cabeceras e IP real.)_
+- ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(Pendiente: crear el subdominio y desplegar, `docs/deploy-vps.md`. Simulado en la laptop con la imagen, el compose y un Caddy iguales a los del servidor.)_
 - ✅ Un error inesperado devuelve un mensaje genérico al usuario y el detalle completo queda en los logs. _(test)_
-- ⏳ El backup corre solo y existe un archivo de ayer. _(El workflow está; no hace nada hasta que estén los secretos de Supabase.)_
+- ⏳ El backup corre solo y existe un archivo de ayer. _(Antes de cada deploy, sí; el periódico es la fase 10a del repo `infra`, hecha para la clínica: falta sumarle la panadería.)_
 - 🟡 Existe el documento de operación y alguien que no sea vos lo puede seguir. _(Existe; que lo siga otra persona no se puede verificar desde acá.)_
 
-**Qué aprendiste:** desarrollo vs producción (12-factor); logs útiles vs ruido; cabeceras de seguridad y CSP; backup y restore (y por qué hay que probarlo); RLS y la API pública de Supabase; integración continua; serverless y el pooler de conexiones (nota 19).
+**Qué aprendiste:** desarrollo vs producción (12-factor); logs útiles vs ruido; cabeceras de seguridad y CSP; backup y restore (y por qué hay que probarlo); RLS y la API pública de Supabase; integración continua; serverless y el pooler de conexiones (nota 19); imagen de Docker en dos etapas, proxy inverso y probar el deploy antes del deploy (nota 20).
 
-**Commits:** `chore(api): endurecimiento…`, `chore(ops): backups…`, `chore(deploy): Vercel listo…`, `chore(deploy): Supabase listo…`.
+**Commits:** `chore(api): endurecimiento…`, `chore(ops): backups…`, `chore(deploy): Vercel listo…`, `chore(deploy): Supabase listo…`, `chore(deploy): VPS en lugar de Vercel + Supabase…`.
 
 ---
 

@@ -42,7 +42,7 @@ describe('validarEnv', () => {
     expect(env.LOG_LEVEL).toBeUndefined();
   });
 
-  it('lee los valores de producción como los escribe Vercel (todo texto)', () => {
+  it('lee los valores de producción como llegan de un archivo .env (todo texto)', () => {
     const env = validarEnv({
       ...minimo,
       NODE_ENV: 'production',

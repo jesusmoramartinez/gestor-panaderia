@@ -8,17 +8,13 @@
  * importarlo: así quien llama decide contra qué base trabaja.
  */
 import type { PrismaClient } from '../src/generated/prisma/client.js';
-import {
-  CATEGORIAS,
-  type DefinicionInsumo,
-  INSUMOS_LAFERRERE,
-  INSUMOS_VECINA,
-} from './semilla-insumos.js';
+import { type DefinicionInsumo, INSUMOS_LAFERRERE, INSUMOS_VECINA } from './semilla-insumos.js';
 import {
   type DefinicionProveedor,
   PROVEEDORES_LAFERRERE,
   PROVEEDORES_VECINA,
 } from './semilla-proveedores.js';
+import { CATEGORIAS, MOTIVOS, UNIDADES } from '../src/alta/catalogo-base.js';
 import { hashearPassword } from '../src/lib/password.js';
 
 /**
@@ -27,45 +23,6 @@ import { hashearPassword } from '../src/lib/password.js';
  * producción, así que esto nunca llega a un servidor.
  */
 export const PASSWORD_DEV = 'panaderia123';
-
-/**
- * Las unidades de medida básicas. Son iguales para toda panadería, así que no
- * forman parte de la definición de cada empresa: se cargan para todas.
- *
- * `factorABase` va como TEXTO, nunca como number: es el factor del que
- * depende cada conversión del sistema.
- */
-export const UNIDADES = [
-  { codigo: 'kg', nombre: 'Kilogramo', dimension: 'PESO', factorABase: '1', esBase: true },
-  { codigo: 'g', nombre: 'Gramo', dimension: 'PESO', factorABase: '0.001', esBase: false },
-  { codigo: 'l', nombre: 'Litro', dimension: 'VOLUMEN', factorABase: '1', esBase: true },
-  { codigo: 'ml', nombre: 'Mililitro', dimension: 'VOLUMEN', factorABase: '0.001', esBase: false },
-  { codigo: 'u', nombre: 'Unidad', dimension: 'UNIDAD', factorABase: '1', esBase: true },
-] as const;
-
-/**
- * Los motivos de movimiento. Como las unidades, son iguales para cualquier
- * panadería, así que se cargan para todas las empresas.
- *
- * `tipoAplicable` dice a qué clase de movimiento se le puede poner cada uno:
- * "Diferencia de conteo" no tiene sentido en una merma, y "Vencido" no tiene
- * sentido en un ajuste. Que el motivo sea una tabla y no texto libre es lo que
- * permite responder "¿cuánta plata perdimos por vencimiento este mes?".
- */
-export const MOTIVOS = [
-  { tipoAplicable: 'MERMA', nombre: 'Vencido' },
-  { tipoAplicable: 'MERMA', nombre: 'Roto / derramado' },
-  { tipoAplicable: 'MERMA', nombre: 'Plaga o humedad' },
-  { tipoAplicable: 'MERMA', nombre: 'Error de carga' },
-  // La usa sola la recepción de una transferencia cuando llega menos de lo que
-  // salió (Fase 9): la diferencia se registra como merma en el destino.
-  { tipoAplicable: 'MERMA', nombre: 'Diferencia en transferencia' },
-  { tipoAplicable: 'AJUSTE', nombre: 'Diferencia de conteo' },
-  { tipoAplicable: 'AJUSTE', nombre: 'Diferencia en transferencia' },
-  { tipoAplicable: 'AJUSTE', nombre: 'Error de carga' },
-  { tipoAplicable: 'CONSUMO', nombre: 'Producción del turno' },
-  { tipoAplicable: 'CONSUMO', nombre: 'Prueba / degustación' },
-] as const;
 
 export type DefinicionSucursal = {
   codigo: string;

@@ -3,12 +3,16 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { cerrarConexiones, prisma } from '../src/lib/db.js';
 
 /**
- * LA BASE CERRADA PARA QUIEN NO ES LA API (Fase 11, por Supabase).
+ * LA BASE CERRADA PARA QUIEN NO ES LA API (Fase 11).
  *
- * Supabase publica las tablas de `public` por su API REST para el rol `anon`,
- * cuya clave es pública. La migración `seguridad_supabase` activa RLS en
- * todas las tablas: sin políticas, nadie que no sea el dueño ve una fila.
- * Estos tests verifican que siga así, también para las tablas FUTURAS.
+ * Nació para Supabase, que publica las tablas por una API REST con una clave
+ * pública. El despliegue terminó en un VPS propio, donde la base ni siquiera
+ * tiene salida a la red, pero el RLS se queda como segunda barrera: si algún
+ * día otro rol (un usuario de solo lectura para reportes, una herramienta)
+ * se conecta a la base, no ve nada que no se le haya dado a propósito.
+ * La migración `seguridad_supabase` activa RLS en todas las tablas: sin
+ * políticas, nadie que no sea el dueño ve una fila. Estos tests verifican que
+ * siga así, también para las tablas FUTURAS.
  */
 
 afterAll(async () => {

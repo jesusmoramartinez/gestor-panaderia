@@ -17,7 +17,7 @@ async function main(): Promise<void> {
     throw new Error('El seed no se ejecuta en producción (NODE_ENV=production).');
   }
   // Segunda guarda: solo contra una base LOCAL. La primera no alcanza: si
-  // alguien apunta el .env a Supabase y corre `pnpm db:seed` en modo
+  // alguien apunta el .env a la base del servidor y corre `pnpm db:seed` en modo
   // desarrollo, la semilla resetearía las contraseñas de los usuarios a la de
   // desarrollo. Para producción está el alta (prisma/alta.ts).
   const host = new URL(env.DATABASE_URL).hostname;
