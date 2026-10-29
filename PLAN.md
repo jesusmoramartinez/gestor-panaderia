@@ -1145,7 +1145,7 @@ Dos consecuencias lindas de ese diseño:
 **Terminado cuando** — repasado punto por punto:
 
 - ✅ Borro la base local, restauro el último backup y el sistema arranca con todos los datos. _(En una base nueva, para no borrar los datos de prueba del cliente: 25 tablas idénticas y la API entra y muestra el stock.)_
-- ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(29/10/2026: desplegado en el VPS (`panaderia-api:2026-10-29-a485353`) y dada de alta Panadería Morinigo; falta el HTTPS, que espera el DNS de `panaderia-j.duckdns.org`, y que Marcelo entre desde la tablet.)_
+- ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(29/10/2026: anda en `https://panaderia-j.duckdns.org` (certificado de Let's Encrypt, cabeceras de seguridad, sin errores de CSP en el navegador) con Panadería Morinigo dada de alta. Falta que Marcelo entre desde la tablet de la panadería.)_
 - ✅ Un error inesperado devuelve un mensaje genérico al usuario y el detalle completo queda en los logs. _(test)_
 - 🟡 El backup corre solo y existe un archivo de ayer. _(29/10/2026: instalado en el VPS; el primero, a mano, subió a Drive y se restauró en la laptop con las 25 tablas idénticas a producción. El timer corre a las 9 y 21 de Buenos Aires: "un archivo de ayer" se confirma mañana.)_
 - 🟡 Existe el documento de operación y alguien que no sea vos lo puede seguir. _(Existe; que lo siga otra persona no se puede verificar desde acá.)_
