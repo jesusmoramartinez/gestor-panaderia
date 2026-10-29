@@ -1139,16 +1139,18 @@ Dos consecuencias lindas de ese diseño:
 7. `docs/operacion.md`: verificar, crear usuarios, backup, restaurar, desplegar, volver atrás, qué no hacer nunca.
 8. CI en GitHub Actions: formato, tipos, lint, tests y Playwright en cada push, contra **PostgreSQL 18.6** (la del VPS). Playwright corre contra la **API sirviendo el build de producción**, como en el VPS. Un tercer trabajo arma la imagen de Docker y verifica que no traiga la semilla.
 9. **VPS preparado** (reemplaza lo de Vercel + Supabase, que se borró): `Dockerfile` (lista explícita: la semilla no entra), `scripts/deploy.sh` (imagen desde el commit de GitHub, por SSH), `compose.yaml` + `actualizar.sh` + bloque de Caddy en el repo `infra`, alta de producción compilada dentro de la imagen (`src/alta/`). **Probado en la laptop** con los mismos archivos: primera activación, segundo deploy con backup, alta, Caddy con las cabeceras de la clínica y un navegador recorriendo las pantallas. La prueba encontró que la API compilada no arrancaba (nota 20). RLS en todas las tablas se queda como segunda barrera.
+10. **Imagen chica** (715 → 306 MB): migrador propio compatible con `_prisma_migrations` (verificado contra `prisma migrate status`) y poda de lo que la app no alcanza (`scripts/podar-dependencias.mjs`).
+11. **Backups automáticos** (29/10/2026, pedido del cliente, mismo esquema que el pensado para la clínica): `pg_dump | gpg` AES256 a las 9 y 21 de Buenos Aires (timer de systemd), local 7 días + Google Drive 30 días con rclone (OAuth, scope `drive.file`), solo si cambió la huella, aviso por healthchecks.io, log con logrotate; `pnpm backup:bajar` para la copia manual a la laptop y `pnpm db:restaurar` para abrir los `.sql.gpg`. Scripts en el repo `infra` (`servidor/backups/`). **Restauración probada** en la laptop: 25 tablas idénticas (md5), también el procedimiento de recuperar producción.
 
 **Terminado cuando** — repasado punto por punto:
 
 - ✅ Borro la base local, restauro el último backup y el sistema arranca con todos los datos. _(En una base nueva, para no borrar los datos de prueba del cliente: 25 tablas idénticas y la API entra y muestra el stock.)_
 - ⏳ El sistema anda en la URL de producción y el dueño puede loguearse desde la tablet de la panadería. _(Pendiente: crear el subdominio y desplegar, `docs/deploy-vps.md`. Simulado en la laptop con la imagen, el compose y un Caddy iguales a los del servidor.)_
 - ✅ Un error inesperado devuelve un mensaje genérico al usuario y el detalle completo queda en los logs. _(test)_
-- ⏳ El backup corre solo y existe un archivo de ayer. _(Antes de cada deploy, sí; el periódico es la fase 10a del repo `infra`, hecha para la clínica: falta sumarle la panadería.)_
+- ⏳ El backup corre solo y existe un archivo de ayer. _(Hecho y probado en la laptop; falta instalarlo en el servidor: `docs/deploy-vps.md`, Backups.)_
 - 🟡 Existe el documento de operación y alguien que no sea vos lo puede seguir. _(Existe; que lo siga otra persona no se puede verificar desde acá.)_
 
-**Qué aprendiste:** desarrollo vs producción (12-factor); logs útiles vs ruido; cabeceras de seguridad y CSP; backup y restore (y por qué hay que probarlo); RLS y la API pública de Supabase; integración continua; serverless y el pooler de conexiones (nota 19); imagen de Docker en dos etapas, proxy inverso y probar el deploy antes del deploy (nota 20).
+**Qué aprendiste:** desarrollo vs producción (12-factor); logs útiles vs ruido; cabeceras de seguridad y CSP; backup y restore (y por qué hay que probarlo); RLS y la API pública de Supabase; integración continua; serverless y el pooler de conexiones (nota 19); imagen de Docker en dos etapas, proxy inverso y probar el deploy antes del deploy (nota 20); backups cifrados, huellas y retención (nota 21).
 
 **Commits:** `chore(api): endurecimiento…`, `chore(ops): backups…`, `chore(deploy): Vercel listo…`, `chore(deploy): Supabase listo…`, `chore(deploy): VPS en lugar de Vercel + Supabase…`.
 

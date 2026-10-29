@@ -7,15 +7,15 @@ desbloqueada (`ssh vps`). La primera instalación está en
 
 ## Dónde está cada cosa
 
-| Qué                              | Dónde                                                                |
-| -------------------------------- | -------------------------------------------------------------------- |
-| La aplicación                    | `https://panaderia-j.duckdns.org`                                    |
-| El servidor                      | VPS de DigitalOcean (Toronto), `ssh vps`, compartido con la clínica  |
-| La app y su base                 | `/srv/panaderia` (contenedores `panaderia-api-1` y `panaderia-db-1`) |
-| Los datos                        | volumen de Docker `panaderia_panaderia_pgdata` (**no borrar**)       |
-| Backups previos a cada deploy    | `/srv/backups/panaderia/`                                            |
-| Claves (base, dueño, id empresa) | gestor de contraseñas de Jesús                                       |
-| **A quién llamar si se cae**     | _nombre y teléfono_                                                  |
+| Qué                           | Dónde                                                                |
+| ----------------------------- | -------------------------------------------------------------------- |
+| La aplicación                 | `https://panaderia-j.duckdns.org`                                    |
+| El servidor                   | VPS de DigitalOcean (Toronto), `ssh vps`, compartido con la clínica  |
+| La app y su base              | `/srv/panaderia` (contenedores `panaderia-api-1` y `panaderia-db-1`) |
+| Los datos                     | volumen de Docker `panaderia_panaderia_pgdata` (**no borrar**)       |
+| Backups                       | `/srv/backups/panaderia/` y Google Drive (`backups-vps/panaderia`)   |
+| Claves (base, backups, dueño) | gestor de contraseñas de Jesús                                       |
+| **A quién llamar si se cae**  | _nombre y teléfono_                                                  |
 
 ## Verificar que todo anda
 
@@ -60,18 +60,31 @@ tocar nada. Para volver atrás:
 `ssh vps 'sudo /srv/panaderia/actualizar.sh <etiqueta-anterior>'`. El detalle,
 en `docs/deploy-vps.md`.
 
-## Hacer una copia de la base a la laptop
+## Los backups
 
-Igual que con la clínica: el dump sale por SSH y se **cifra al vuelo** con
-`age` en la laptop (el archivo sin cifrar nunca toca un disco). Usa la misma
-clave pública que la clínica (`~/.config/age/clinica-backups.pub`).
+Automáticos a las 9:00 y a las 21:00 de Buenos Aires: cifrados, en el servidor
+(7 días) y en Google Drive (30 días, solo si hubo cambios). Cómo están
+armados: `docs/deploy-vps.md`, sección Backups.
 
 ```bash
-set -o pipefail; mkdir -p -m 700 ~/backups/panaderia
-f=~/backups/panaderia/panaderia-$(date -u +%Y%m%dT%H%M%SZ).dump.age
-ssh vps 'cd /srv/panaderia && sudo docker compose exec -T db sh -c "pg_dump -U \"\$POSTGRES_USER\" -Fc \"\$POSTGRES_DB\""' \
-  | age -R ~/.config/age/clinica-backups.pub > "$f.part" && mv "$f.part" "$f" && chmod 600 "$f"
+ssh vps 'sudo tail -n 6 /var/log/backup-panaderia.log'   # las últimas corridas
+ssh vps 'systemctl list-timers "backup@*"'               # cuándo es la próxima
+ssh vps 'sudo systemctl start backup@panaderia'          # uno ahora
 ```
+
+Si healthchecks.io avisa que falló: mirar el log. Los motivos más probables
+son la base caída (`docker compose ps`) o la autorización de Drive vencida
+(rehacer `rclone config reconnect gdrive:` en la laptop y copiar otra vez el
+`rclone.conf`, paso 6 de `deploy-vps.md`).
+
+**Bajar uno a la laptop** cuando quieras (hace uno nuevo y lo baja, cifrado):
+
+```bash
+pnpm backup:bajar             # o: pnpm backup:bajar --ultimo (el último que ya está)
+```
+
+Queda en `~/backups/panaderia/` (carpeta 700, archivo 600), verificado con
+sha256 contra el del servidor.
 
 ## Restaurar un backup
 
@@ -79,35 +92,42 @@ ssh vps 'cd /srv/panaderia && sudo docker compose exec -T db sh -c "pg_dump -U \
 vez por mes, nunca contra el servidor:
 
 ```bash
-age -d -i <archivo-con-la-clave-privada> panaderia-….dump.age > panaderia.dump
 pnpm db:up
-pnpm db:restaurar panaderia.dump panaderia_restaurada
+pnpm db:restaurar ~/backups/panaderia/panaderia-<fecha>.sql.gpg panaderia_restaurada
 ```
 
-Crea la base `panaderia_restaurada` (nunca pisa una existente), restaura y
-muestra las filas de cada tabla. Después borrá `panaderia.dump`.
+Pide la clave de los backups (la del gestor de contraseñas), crea la base
+`panaderia_restaurada` (nunca pisa una existente: se niega), descifra al vuelo
+y muestra las filas de cada tabla. Solo puede restaurar en el Postgres local
+de desarrollo: no recibe ninguna dirección de base.
 
-**Para recuperar producción** (se rompió la base): **siempre con un backup
-nuevo antes**, porque reemplaza los datos. Con la app parada:
+**Para recuperar producción** (se rompió la base). **Reemplaza todos los
+datos**: con aprobación, fuera del horario de la panadería y con un backup
+nuevo antes. Se pierde lo cargado después del backup que se restaura.
 
 ```bash
-ssh vps 'cd /srv/panaderia && sudo docker compose stop api'
-# copiar el .dump al servidor (scp) y:
-ssh vps 'cd /srv/panaderia && sudo docker compose exec -T db sh -c \
-  "pg_restore -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" --clean --if-exists --no-owner --exit-on-error" < /tmp/el-backup.dump'
-ssh vps 'cd /srv/panaderia && sudo docker compose start api'
+ssh -t vps
+cd /srv/panaderia
+sudo systemctl start backup@panaderia      # una foto de cómo está ahora, por las dudas
+B=/srv/backups/panaderia/automaticos/panaderia-<fecha>.sql.gpg   # el que se restaura
+sudo docker compose stop api
+sudo docker compose exec -T db sh -c 'dropdb -U "$POSTGRES_USER" --force "$POSTGRES_DB" && createdb -U "$POSTGRES_USER" "$POSTGRES_DB"'
+sudo gpg --batch --quiet --pinentry-mode loopback --passphrase-file /root/.config/backup/pass.txt --decrypt "$B" \
+  | sudo docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction --quiet' >/dev/null
+sudo docker compose start api
 ```
 
-Se pierde todo lo cargado después de ese backup. _(Este camino todavía no se probó contra el servidor:
-ensayarlo primero con la copia de la laptop.)_
+_(Ensayado en la laptop contra una copia del servidor: la base quedó idéntica
+al backup, tabla por tabla, y el login anduvo.)_
 
 ## Lo que NO hay que hacer nunca
 
 - `docker compose down -v` en `/srv/panaderia`: el `-v` **borra la base**.
-- Borrar el volumen `panaderia_panaderia_pgdata` o los `antes-*.dump`.
+- Borrar el volumen `panaderia_panaderia_pgdata`, los `antes-*.dump` o
+  `/root/.config/backup/pass.txt` (sin esa clave, ningún backup se abre).
 - Correr `prisma migrate dev` o `prisma migrate reset` contra el servidor
-  (`reset` borra todo). En el servidor solo `migrate deploy`, y lo corre
-  `actualizar.sh`.
+  (`reset` borra todo). En el servidor las migraciones las aplica
+  `actualizar.sh`, con el migrador de la imagen (que nunca borra nada).
 - Editar una migración que ya se aplicó en el servidor.
 - Publicar puertos (`ports:`) en el `compose.yaml`: Docker se saltea el
   firewall. Solo Caddy publica el 80 y el 443.

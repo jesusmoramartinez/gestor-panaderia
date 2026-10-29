@@ -30,7 +30,8 @@
     "db:reset": "pnpm --filter @panaderia/api db:reset",
     "db:backup": "./scripts/backup.sh",
     "db:restaurar": "./scripts/restaurar.sh",
-    "deploy:vps": "./scripts/deploy.sh"
+    "deploy:vps": "./scripts/deploy.sh",
+    "backup:bajar": "./scripts/bajar-backup.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
