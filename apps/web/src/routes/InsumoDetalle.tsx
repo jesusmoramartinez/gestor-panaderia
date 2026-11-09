@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router';
 
 import { DialogoConfirmacion } from '../components/Dialogo';
+import { CuadroIcono, iconoDe, SelectorIcono } from '../components/iconosInsumo';
 import {
   alEnviar,
   Campo,
@@ -98,6 +99,7 @@ export function InsumoDetalle() {
           ← Volver a insumos
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
+          <CuadroIcono icono={iconoDe(insumo)} grande />
           <h1 className="mr-auto text-2xl font-bold text-slate-900 dark:text-slate-50">
             {insumo.nombre}
           </h1>
@@ -176,6 +178,7 @@ function DatosBasicos({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: bo
     defaultValues: {
       nombre: insumo.nombre,
       codigo: insumo.codigo ?? '',
+      icono: insumo.icono ?? '',
       categoriaId: insumo.categoria?.id ?? '',
     },
   });
@@ -189,6 +192,7 @@ function DatosBasicos({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: bo
       form.reset({
         nombre: actualizado.nombre,
         codigo: actualizado.codigo ?? '',
+        icono: actualizado.icono ?? '',
         categoriaId: actualizado.categoria?.id ?? '',
       });
     },
@@ -196,6 +200,10 @@ function DatosBasicos({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: bo
       setErrorGeneral(aplicarErroresDelServidor(error, form.setError));
     },
   });
+
+  const icono = form.watch('icono') ?? '';
+  const categoriaId = form.watch('categoriaId') ?? '';
+  const categoriaElegida = categorias.data?.find((c) => c.id === categoriaId);
 
   return (
     <Tarjeta titulo="Datos del insumo">
@@ -210,7 +218,15 @@ function DatosBasicos({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: bo
         noValidate
         className="space-y-4"
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-[auto_1fr] gap-4 sm:grid-cols-[auto_1fr_12rem]">
+          <SelectorIcono
+            valor={icono === '' ? null : icono}
+            sugerido={categoriaElegida?.icono ?? null}
+            deshabilitado={!puedeEditar}
+            onCambiar={(elegido) => {
+              form.setValue('icono', elegido ?? '', { shouldDirty: true });
+            }}
+          />
           <Campo etiqueta="Nombre" error={form.formState.errors.nombre?.message}>
             <input
               type="text"
@@ -220,24 +236,34 @@ function DatosBasicos({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: bo
             />
           </Campo>
 
-          <Campo etiqueta="Código" error={form.formState.errors.codigo?.message}>
-            <input
-              type="text"
-              disabled={!puedeEditar}
-              className={CLASE_CONTROL}
-              {...form.register('codigo')}
-            />
-          </Campo>
+          <div className="col-span-2 sm:col-span-1">
+            <Campo etiqueta="Código" error={form.formState.errors.codigo?.message}>
+              <input
+                type="text"
+                disabled={!puedeEditar}
+                className={CLASE_CONTROL}
+                {...form.register('codigo')}
+              />
+            </Campo>
+          </div>
+        </div>
+        {form.formState.errors.icono?.message !== undefined && (
+          <MensajeError>{form.formState.errors.icono.message}</MensajeError>
+        )}
 
+        <div className="grid gap-4 sm:grid-cols-2">
           <Campo etiqueta="Categoría" error={form.formState.errors.categoriaId?.message}>
+            {/* Controlado: las opciones llegan de la API (nota 18). */}
             <select
               disabled={!puedeEditar}
               className={CLASE_CONTROL}
               {...form.register('categoriaId')}
+              value={categoriaId}
             >
               <option value="">Sin categoría</option>
               {(categorias.data ?? []).map((categoria) => (
                 <option key={categoria.id} value={categoria.id}>
+                  {categoria.icono === null ? '' : `${categoria.icono} `}
                   {categoria.nombre}
                 </option>
               ))}

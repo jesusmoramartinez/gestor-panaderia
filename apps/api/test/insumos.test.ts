@@ -148,15 +148,29 @@ describe('GET /api/insumos', () => {
 
   it('filtra por categoría', async () => {
     await entrarComo('dueno@panaderia.test');
-    const r = await api.get(`/api/insumos?categoriaId=${categoriaHarinasId}&limite=100`);
+    const r = await api.get(`/api/insumos?categoriaIds=${categoriaHarinasId}&limite=100`);
     const { items } = listado(r.cuerpo);
     expect(items.length).toBeGreaterThanOrEqual(3);
     for (const insumo of items) expect(insumo.categoria?.id).toBe(categoriaHarinasId);
   });
 
+  it('filtra por VARIAS categorías a la vez (la barra de filtros deja marcar varias)', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const lacteos = await prisma.categoriaInsumo.findFirstOrThrow({
+      where: { empresa: { nombre: 'Panadería Laferrere' }, nombre: 'Lácteos' },
+    });
+    const r = await api.get(
+      `/api/insumos?categoriaIds=${categoriaHarinasId},${lacteos.id}&limite=100`,
+    );
+    const { items } = listado(r.cuerpo);
+    const categorias = new Set(items.map((i) => i.categoria?.id));
+    // Vienen las dos, y ninguna otra.
+    expect(categorias).toEqual(new Set([categoriaHarinasId, lacteos.id]));
+  });
+
   it('rechaza un filtro con un uuid inválido', async () => {
     await entrarComo('dueno@panaderia.test');
-    const r = await api.get('/api/insumos?categoriaId=no-es-uuid');
+    const r = await api.get(`/api/insumos?categoriaIds=${categoriaHarinasId},no-es-uuid`);
     expect(r.status).toBe(400);
     expect(codigoError(r)).toBe('DATOS_INVALIDOS');
   });
@@ -244,6 +258,28 @@ describe('POST /api/insumos — las reglas del catálogo', () => {
     expect(detallesError(r)['unidadBaseId']).toBeDefined();
   });
 
+  it('guarda el ícono (un emoji) y lo devuelve en el listado', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const nombre = nombreNuevo('Con ícono');
+    const r = await crearInsumo({ nombre, icono: '🧈' });
+    expect(r.status).toBe(201);
+    expect(detalle(r.cuerpo).icono).toBe('🧈');
+
+    const { items } = listado(
+      (await api.get(`/api/insumos?busqueda=${encodeURIComponent(nombre)}`)).cuerpo,
+    );
+    expect(items[0]?.icono).toBe('🧈');
+    // Y la categoría viene con el suyo, para usarlo cuando el insumo no tiene.
+    expect(items[0]?.categoria).toHaveProperty('icono');
+  });
+
+  it('rechaza un ícono que no es un emoji (400, no 500)', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const r = await crearInsumo({ icono: 'abc' });
+    expect(r.status).toBe(400);
+    expect(detallesError(r)['icono']).toBe('El ícono tiene que ser un emoji');
+  });
+
   it('REGLA: no se puede usar una categoría de OTRA empresa', async () => {
     await entrarComo('dueno@panaderia.test');
     const r = await crearInsumo({ categoriaId: categoriaAjenaId });
@@ -280,6 +316,19 @@ describe('PATCH /api/insumos/:id', () => {
     expect(actualizado.nombre).toBe(nuevoNombre);
     expect(actualizado.categoria).toBeNull();
     expect(actualizado.unidadBase.id).toBe(creado.unidadBase.id);
+  });
+
+  it('cambia el ícono, y con null lo saca', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const creado = detalle((await crearInsumo({ icono: '🥚' })).cuerpo);
+
+    const r1 = await api.pedir('PATCH', `/api/insumos/${creado.id}`, { icono: '🍳' });
+    expect(detalle(r1.cuerpo).icono).toBe('🍳');
+    // Un PATCH que no trae el ícono no lo toca.
+    const r2 = await api.pedir('PATCH', `/api/insumos/${creado.id}`, { codigo: null });
+    expect(detalle(r2.cuerpo).icono).toBe('🍳');
+    const r3 = await api.pedir('PATCH', `/api/insumos/${creado.id}`, { icono: null });
+    expect(detalle(r3.cuerpo).icono).toBeNull();
   });
 
   it('REGLA: NO cambia la unidad base, aunque se la manden', async () => {

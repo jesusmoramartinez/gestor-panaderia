@@ -1,6 +1,6 @@
 import { prisma } from '../../lib/db.js';
 
-const SELECCION = { id: true, nombre: true, activa: true } as const;
+const SELECCION = { id: true, nombre: true, icono: true, activa: true } as const;
 
 export function listarPorEmpresa(empresaId: string, incluirInactivas: boolean) {
   return prisma.categoriaInsumo.findMany({

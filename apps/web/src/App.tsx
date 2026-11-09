@@ -4,7 +4,6 @@ import { RutaProtegida } from './components/RutaProtegida';
 import { usePuede } from './hooks/useSesion';
 import { Inicio } from './routes/Inicio';
 import { InsumoDetalle } from './routes/InsumoDetalle';
-import { InsumoNuevo } from './routes/InsumoNuevo';
 import { Insumos } from './routes/Insumos';
 import { AjustarStock } from './routes/AjustarStock';
 import { CargarMovimiento } from './routes/CargarMovimiento';
@@ -50,7 +49,7 @@ export function App() {
         <Route path="/insumos" element={<Insumos />} />
         {/* El orden importa: /insumos/nuevo tiene que ir ANTES de
             /insumos/:id, porque si no "nuevo" se tomaría como un id. */}
-        <Route path="/insumos/nuevo" element={<InsumoNuevo />} />
+        <Route path="/insumos/nuevo" element={<Insumos nuevo />} />
         <Route path="/insumos/:id" element={<InsumoDetalle />} />
 
         <Route path="/proveedores" element={<Proveedores />} />

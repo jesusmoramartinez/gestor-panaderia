@@ -47,16 +47,27 @@ export const MOTIVOS = [
   { tipoAplicable: 'CONSUMO', nombre: 'Prueba / degustación' },
 ] as const;
 
-/** Las categorías con las que arranca el catálogo de insumos. */
+/**
+ * Las categorías con las que arranca el catálogo de insumos, con su ícono
+ * (un emoji: ver apps/web/src/components/iconosInsumo.tsx). El ícono es lo
+ * que se ve en la barra de filtros de Insumos, y el que usa un insumo que
+ * no tiene uno propio.
+ */
 export const CATEGORIAS = [
-  'Harinas',
-  'Levaduras y mejoradores',
-  'Sal y condimentos',
-  'Azúcares',
-  'Grasas y aceites',
-  'Lácteos',
-  'Huevos',
-  'Rellenos y coberturas',
-  'Semillas y frutos secos',
-  'Envases y descartables',
+  { nombre: 'Harinas', icono: '🌾' },
+  { nombre: 'Levaduras y mejoradores', icono: '🫧' },
+  { nombre: 'Azúcares', icono: '🍬' },
+  { nombre: 'Grasas y aceites', icono: '🧈' },
+  { nombre: 'Lácteos', icono: '🥛' },
+  { nombre: 'Huevos', icono: '🥚' },
+  { nombre: 'Sal y condimentos', icono: '🧂' },
+  { nombre: 'Rellenos y coberturas', icono: '🍯' },
+  { nombre: 'Chocolates y cacao', icono: '🍫' },
+  { nombre: 'Frutas y abrillantados', icono: '🍒' },
+  { nombre: 'Semillas y frutos secos', icono: '🌰' },
+  { nombre: 'Esencias y aditivos', icono: '🧪' },
+  { nombre: 'Fiambres y quesos', icono: '🧀' },
+  { nombre: 'Verduras y salsas', icono: '🍅' },
+  { nombre: 'Envases y descartables', icono: '📦' },
+  { nombre: 'Limpieza', icono: '🧽' },
 ] as const;

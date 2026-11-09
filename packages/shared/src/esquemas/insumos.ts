@@ -52,18 +52,37 @@ const TextoOpcional = (maximo: number) =>
     .nullish()
     .transform((valor) => (valor === undefined || valor === null || valor === '' ? null : valor));
 
+/**
+ * Un ícono: un emoji (🌾, 🥚). Opcional; la cadena vacía se guarda como null.
+ *
+ * `\p{Extended_Pictographic}` es la propiedad Unicode de "esto es un dibujito":
+ * la regla deja pasar 🧈 o 🫙 y rechaza "abc". El tope de 16 alcanza para los
+ * emoji compuestos (los que se arman con varios códigos pegados).
+ */
+export const IconoSchema = z
+  .string()
+  .trim()
+  .max(16, 'Elegí un solo ícono')
+  .refine((valor) => valor === '' || /\p{Extended_Pictographic}/u.test(valor), {
+    error: 'El ícono tiene que ser un emoji',
+  })
+  .nullish()
+  .transform((valor) => (valor === undefined || valor === null || valor === '' ? null : valor));
+
 // ===========================================================================
 // Entradas (lo que manda el formulario)
 // ===========================================================================
 
 export const CrearCategoriaSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(60),
+  icono: IconoSchema,
 });
 export type CrearCategoriaInput = z.infer<typeof CrearCategoriaSchema>;
 
 export const CrearInsumoSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(120),
   codigo: TextoOpcional(40),
+  icono: IconoSchema,
   categoriaId: UuidOpcional,
   /**
    * La unidad en la que se va a llevar el stock. Obligatoria al crear y
@@ -138,7 +157,19 @@ export const LIMITE_MAXIMO_LISTADO = 100;
 /** Filtros del listado. Todo llega como texto en el query string. */
 export const FiltroInsumosSchema = z.object({
   busqueda: z.string().trim().max(80).optional(),
-  categoriaId: z.uuid().optional(),
+  /**
+   * Una o varias categorías, separadas por coma en el query string
+   * (`?categoriaIds=a,b`): la barra de filtros deja marcar varias.
+   */
+  categoriaIds: z
+    .string()
+    .optional()
+    .transform((valor) =>
+      valor === undefined || valor.trim() === ''
+        ? undefined
+        : valor.split(',').map((id) => id.trim()),
+    )
+    .pipe(z.array(z.uuid('Categoría inválida')).max(50).optional()),
   incluirInactivos: z.stringbool().default(false),
   limite: z.coerce.number().int().min(1).max(LIMITE_MAXIMO_LISTADO).default(25),
   desplazamiento: z.coerce.number().int().min(0).default(0),
@@ -152,6 +183,7 @@ export type FiltroInsumos = z.infer<typeof FiltroInsumosSchema>;
 export const CategoriaSchema = z.object({
   id: z.uuid(),
   nombre: z.string(),
+  icono: z.string().nullable(),
   activa: z.boolean(),
 });
 export type Categoria = z.infer<typeof CategoriaSchema>;
@@ -190,8 +222,11 @@ export const InsumoResumenSchema = z.object({
   id: z.uuid(),
   codigo: z.string().nullable(),
   nombre: z.string(),
+  icono: z.string().nullable(),
   activo: z.boolean(),
-  categoria: z.object({ id: z.uuid(), nombre: z.string() }).nullable(),
+  categoria: z
+    .object({ id: z.uuid(), nombre: z.string(), icono: z.string().nullable() })
+    .nullable(),
   unidadBase: UnidadBaseSchema,
   cantidadPresentaciones: z.number().int(),
 });

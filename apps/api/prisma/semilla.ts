@@ -234,11 +234,12 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
       // --- Catálogo: categorías, insumos, presentaciones y mínimos ---
 
       const categoriasPorNombre = new Map<string, string>();
-      for (const nombre of CATEGORIAS) {
+      for (const { nombre, icono } of CATEGORIAS) {
         const fila = await tx.categoriaInsumo.upsert({
           where: { empresaId_nombre: { empresaId: empresa.id, nombre } },
-          create: { empresaId: empresa.id, nombre },
-          update: {},
+          create: { empresaId: empresa.id, nombre, icono },
+          // Si ya existía (de antes de los íconos), le pone el suyo.
+          update: { icono },
         });
         categoriasPorNombre.set(nombre, fila.id);
       }

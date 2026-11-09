@@ -111,7 +111,7 @@ export async function darDeAltaEmpresa(
       data: MOTIVOS.map((m) => ({ ...m, empresaId: empresa.id })),
     });
     await tx.categoriaInsumo.createMany({
-      data: CATEGORIAS.map((nombre) => ({ nombre, empresaId: empresa.id })),
+      data: CATEGORIAS.map((c) => ({ ...c, empresaId: empresa.id })),
     });
     await tx.sucursal.createMany({
       data: datos.sucursales.map((s) => ({ ...s, empresaId: empresa.id })),

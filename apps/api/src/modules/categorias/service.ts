@@ -16,8 +16,8 @@ export async function crear(ctx: Contexto, entrada: CrearCategoriaInput): Promis
 
   return prisma.$transaction(async (tx) => {
     const categoria = await tx.categoriaInsumo.create({
-      data: { empresaId: ctx.empresaId, nombre: entrada.nombre },
-      select: { id: true, nombre: true, activa: true },
+      data: { empresaId: ctx.empresaId, nombre: entrada.nombre, icono: entrada.icono },
+      select: { id: true, nombre: true, icono: true, activa: true },
     });
 
     await registrarAuditoria(tx, {
@@ -26,7 +26,7 @@ export async function crear(ctx: Contexto, entrada: CrearCategoriaInput): Promis
       entidad: 'categoria_insumo',
       entidadId: categoria.id,
       accion: 'CREAR',
-      datosDespues: { nombre: categoria.nombre },
+      datosDespues: { nombre: categoria.nombre, icono: categoria.icono },
       ip: ctx.ip ?? null,
     });
 

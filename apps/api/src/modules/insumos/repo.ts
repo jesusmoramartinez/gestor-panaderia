@@ -7,8 +7,9 @@ const SELECCION_RESUMEN = {
   id: true,
   codigo: true,
   nombre: true,
+  icono: true,
   activo: true,
-  categoria: { select: { id: true, nombre: true } },
+  categoria: { select: { id: true, nombre: true, icono: true } },
   unidadBase: {
     select: { id: true, codigo: true, nombre: true, dimension: true, factorABase: true },
   },
@@ -19,7 +20,7 @@ const SELECCION_RESUMEN = {
 export type FiltroListado = {
   empresaId: string;
   busqueda: string | undefined;
-  categoriaId: string | undefined;
+  categoriaIds: string[] | undefined;
   incluirInactivos: boolean;
   limite: number;
   desplazamiento: number;
@@ -30,7 +31,7 @@ function armarWhere(filtro: FiltroListado): Prisma.InsumoWhereInput {
     // SIEMPRE por empresaId.
     empresaId: filtro.empresaId,
     ...(filtro.incluirInactivos ? {} : { activo: true }),
-    ...(filtro.categoriaId === undefined ? {} : { categoriaId: filtro.categoriaId }),
+    ...(filtro.categoriaIds === undefined ? {} : { categoriaId: { in: filtro.categoriaIds } }),
     ...(filtro.busqueda === undefined
       ? {}
       : {

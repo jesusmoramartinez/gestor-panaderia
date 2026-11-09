@@ -23,7 +23,10 @@ export type FiltroListado = Partial<Omit<FiltroInsumos, 'limite' | 'desplazamien
 function armarQuery(filtro: FiltroListado): string {
   const params = new URLSearchParams();
   if (filtro.busqueda) params.set('busqueda', filtro.busqueda);
-  if (filtro.categoriaId) params.set('categoriaId', filtro.categoriaId);
+  // Varias categorías van juntas, separadas por coma: ?categoriaIds=a,b
+  if (filtro.categoriaIds !== undefined && filtro.categoriaIds.length > 0) {
+    params.set('categoriaIds', filtro.categoriaIds.join(','));
+  }
   if (filtro.incluirInactivos) params.set('incluirInactivos', 'true');
   params.set('limite', String(filtro.limite));
   params.set('desplazamiento', String(filtro.desplazamiento));

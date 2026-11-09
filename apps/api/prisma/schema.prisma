@@ -340,6 +340,8 @@ model CategoriaInsumo {
   id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   empresaId String  @map("empresa_id") @db.Uuid
   nombre    String
+  /// Un emoji (🌾, 🥛): se ve en la barra de filtros de Insumos.
+  icono     String? @db.VarChar(16)
   activa    Boolean @default(true)
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -363,6 +365,9 @@ model Insumo {
   /// Código interno, opcional: muchas panaderías identifican por nombre.
   codigo    String?
   nombre    String
+  /// Un emoji (🥚, 🧈) para reconocerlo de un vistazo. Si no tiene, se usa
+  /// el de su categoría.
+  icono     String? @db.VarChar(16)
 
   categoriaId String? @map("categoria_id") @db.Uuid
 

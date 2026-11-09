@@ -25,6 +25,7 @@ type FilaDetalle = NonNullable<Awaited<ReturnType<typeof repo.buscarDetalle>>>;
 type CambiosInsumo = {
   nombre?: string;
   codigo?: string | null;
+  icono?: string | null;
   categoriaId?: string | null;
 };
 
@@ -37,6 +38,7 @@ function aResumen(fila: FilaResumen): InsumoResumen {
     id: fila.id,
     codigo: fila.codigo,
     nombre: fila.nombre,
+    icono: fila.icono,
     activo: fila.activo,
     categoria: fila.categoria,
     unidadBase: {
@@ -84,7 +86,7 @@ export async function listar(ctx: Contexto, filtro: FiltroInsumos): Promise<List
   const [filas, total] = await repo.listar({
     empresaId: ctx.empresaId,
     busqueda: filtro.busqueda,
-    categoriaId: filtro.categoriaId,
+    categoriaIds: filtro.categoriaIds,
     incluirInactivos: filtro.incluirInactivos,
     limite: filtro.limite,
     desplazamiento: filtro.desplazamiento,
@@ -169,6 +171,7 @@ export async function crear(ctx: Contexto, entrada: CrearInsumoInput): Promise<I
         empresaId: ctx.empresaId,
         nombre: entrada.nombre,
         codigo: entrada.codigo,
+        icono: entrada.icono,
         categoriaId: entrada.categoriaId ?? null,
         unidadBaseId: entrada.unidadBaseId,
       },
@@ -211,6 +214,7 @@ export async function actualizar(
   const cambios: CambiosInsumo = {};
   if (entrada.nombre !== undefined) cambios.nombre = entrada.nombre;
   if (entrada.codigo !== undefined) cambios.codigo = entrada.codigo;
+  if (entrada.icono !== undefined) cambios.icono = entrada.icono;
   if (entrada.categoriaId !== undefined) cambios.categoriaId = entrada.categoriaId ?? null;
 
   if (Object.keys(cambios).length === 0) return obtenerDetalle(ctx, insumoId);
@@ -228,6 +232,7 @@ export async function actualizar(
       datosAntes: {
         nombre: actual.nombre,
         codigo: actual.codigo,
+        icono: actual.icono,
         categoriaId: actual.categoria?.id ?? null,
       },
       datosDespues: cambios,

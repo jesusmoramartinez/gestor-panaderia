@@ -1,7 +1,7 @@
-import { formatearCantidad, type InsumoResumen } from '@panaderia/shared';
+import { formatearCantidad, type Categoria, type InsumoResumen } from '@panaderia/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 
 import {
   CLASE_BOTON_PRIMARIO,
@@ -9,15 +9,24 @@ import {
   CLASE_CONTROL,
   MensajeError,
 } from '../components/formulario';
+import { CuadroIcono, iconoDe } from '../components/iconosInsumo';
+import { ModalNuevoInsumo } from '../components/ModalNuevoInsumo';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePuede } from '../hooks/useSesion';
 import { listarCategorias, listarInsumos } from '../lib/catalogo';
 
 const POR_PAGINA = 20;
 
-export function Insumos() {
+/**
+ * La lista de insumos. `nuevo`: la URL es /insumos/nuevo y el modal de
+ * "Nuevo insumo" está abierto encima de la lista. Que el modal tenga su URL
+ * hace que el botón "atrás" del navegador lo cierre, como se espera.
+ */
+export function Insumos({ nuevo = false }: { nuevo?: boolean }) {
+  const navegar = useNavigate();
   const [busqueda, setBusqueda] = useState('');
-  const [categoriaId, setCategoriaId] = useState('');
+  // Las categorías marcadas en la barra de arriba. Ninguna = todas.
+  const [categoriaIds, setCategoriaIds] = useState<string[]>([]);
   const [incluirInactivos, setIncluirInactivos] = useState(false);
   const [pagina, setPagina] = useState(0);
 
@@ -29,7 +38,7 @@ export function Insumos() {
 
   const filtro = {
     busqueda: busquedaRetrasada || undefined,
-    categoriaId: categoriaId || undefined,
+    categoriaIds,
     incluirInactivos,
     limite: POR_PAGINA,
     desplazamiento: pagina * POR_PAGINA,
@@ -59,14 +68,7 @@ export function Insumos() {
             {insumos.isPending ? 'Cargando...' : `${String(total)} en el catálogo`}
           </p>
         </div>
-        {puedeEditar && (
-          <Link to="/insumos/nuevo" className={`${CLASE_BOTON_PRIMARIO} grid place-items-center`}>
-            Nuevo insumo
-          </Link>
-        )}
-      </div>
 
-      <div className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm sm:grid-cols-[2fr_1fr_auto] dark:bg-slate-900">
         <input
           type="search"
           value={busqueda}
@@ -75,30 +77,11 @@ export function Insumos() {
               setBusqueda(evento.target.value);
             });
           }}
-          placeholder="Buscar por nombre o código"
-          aria-label="Buscar insumos"
-          className={CLASE_CONTROL}
+          placeholder="Buscar..."
+          aria-label="Buscar insumos por nombre o código"
+          className={`${CLASE_CONTROL} sm:w-56`}
         />
-
-        <select
-          value={categoriaId}
-          onChange={(evento) => {
-            cambiarFiltro(() => {
-              setCategoriaId(evento.target.value);
-            });
-          }}
-          aria-label="Filtrar por categoría"
-          className={CLASE_CONTROL}
-        >
-          <option value="">Todas las categorías</option>
-          {(categorias.data ?? []).map((categoria) => (
-            <option key={categoria.id} value={categoria.id}>
-              {categoria.nombre}
-            </option>
-          ))}
-        </select>
-
-        <label className="flex min-h-12 items-center gap-2 px-1 text-sm text-slate-700 dark:text-slate-200">
+        <label className="flex min-h-12 items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input
             type="checkbox"
             checked={incluirInactivos}
@@ -109,9 +92,24 @@ export function Insumos() {
             }}
             className="size-5"
           />
-          Incluir inactivos
+          Inactivos
         </label>
+        {puedeEditar && (
+          <Link to="/insumos/nuevo" className={`${CLASE_BOTON_PRIMARIO} grid place-items-center`}>
+            Nuevo insumo
+          </Link>
+        )}
       </div>
+
+      <BarraCategorias
+        categorias={categorias.data ?? []}
+        elegidas={categoriaIds}
+        onCambiar={(ids) => {
+          cambiarFiltro(() => {
+            setCategoriaIds(ids);
+          });
+        }}
+      />
 
       {insumos.isError && <MensajeError>{insumos.error.message}</MensajeError>}
 
@@ -150,7 +148,133 @@ export function Insumos() {
           </button>
         </div>
       )}
+
+      <ModalNuevoInsumo
+        abierto={nuevo && puedeEditar}
+        onCerrar={() => {
+          void navegar('/insumos', { replace: true });
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * Las categorías como las historias de Instagram o los estados de WhatsApp:
+ * una fila de círculos con su ícono y el nombre abajo, que se desliza de
+ * costado. Se marcan una o varias; ninguna marcada es "todas".
+ *
+ * Cada círculo es un <button> con `aria-pressed`: así el lector de pantalla
+ * dice "Harinas, botón, presionado", que es exactamente lo que es (un
+ * interruptor), y Playwright lo puede verificar.
+ */
+function BarraCategorias({
+  categorias,
+  elegidas,
+  onCambiar,
+}: {
+  categorias: readonly Categoria[];
+  elegidas: readonly string[];
+  onCambiar: (ids: string[]) => void;
+}) {
+  function alternar(id: string): void {
+    onCambiar(elegidas.includes(id) ? elegidas.filter((e) => e !== id) : [...elegidas, id]);
+  }
+
+  // En la PC, la rueda del mouse (que va para abajo) desliza la barra de
+  // costado, como se espera de una fila así. En el celular se desliza con el
+  // dedo y esto no interviene.
+  //
+  // Va con addEventListener y no con onWheel de React porque hay que llamar a
+  // preventDefault (si no, además se movería la página), y React registra la
+  // rueda como "pasiva": un listener pasivo promete no frenar el scroll.
+  const barra = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const elemento = barra.current;
+    if (!elemento) return;
+    const alGirar = (evento: WheelEvent): void => {
+      const sobraLugar = elemento.scrollWidth <= elemento.clientWidth;
+      if (sobraLugar || Math.abs(evento.deltaY) <= Math.abs(evento.deltaX)) return;
+      evento.preventDefault();
+      elemento.scrollLeft += evento.deltaY;
+    };
+    elemento.addEventListener('wheel', alGirar, { passive: false });
+    return () => {
+      elemento.removeEventListener('wheel', alGirar);
+    };
+  }, []);
+
+  return (
+    <div
+      role="group"
+      aria-label="Filtrar por categoría"
+      ref={barra}
+      className="-mx-1 flex gap-1 overflow-x-auto px-1 pt-1.5 pb-2"
+    >
+      <Burbuja
+        icono="🗂️"
+        nombre="Todas"
+        marcada={elegidas.length === 0}
+        onClick={() => {
+          onCambiar([]);
+        }}
+      />
+      {categorias.map((categoria) => (
+        <Burbuja
+          key={categoria.id}
+          icono={categoria.icono ?? '📦'}
+          nombre={categoria.nombre}
+          marcada={elegidas.includes(categoria.id)}
+          onClick={() => {
+            alternar(categoria.id);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Burbuja({
+  icono,
+  nombre,
+  marcada,
+  onClick,
+}: {
+  icono: string;
+  nombre: string;
+  marcada: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={marcada}
+      onClick={onClick}
+      title={nombre}
+      className="group flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-xl py-1"
+    >
+      {/* El aro de color es lo que dice "marcada", como el aro de una
+          historia sin ver. Además el fondo cambia: no depende solo del color. */}
+      <span
+        className={`grid size-14 place-items-center rounded-full text-[1.7rem] transition ${
+          marcada
+            ? 'bg-amber-100 ring-3 ring-corteza ring-offset-2 ring-offset-masa dark:bg-slate-700 dark:ring-corteza-claro dark:ring-offset-horno'
+            : 'bg-white ring-1 ring-slate-200 group-hover:ring-slate-400 dark:bg-slate-900 dark:ring-slate-700'
+        }`}
+      >
+        <span aria-hidden="true">{icono}</span>
+      </span>
+      <span
+        // Hasta dos renglones: "Semillas y frutos secos" entra entero.
+        className={`line-clamp-2 w-full text-center text-xs leading-tight ${
+          marcada
+            ? 'font-semibold text-corteza dark:text-corteza-claro'
+            : 'text-slate-700 dark:text-slate-300'
+        }`}
+      >
+        {nombre}
+      </span>
+    </button>
   );
 }
 
@@ -166,14 +290,20 @@ function ListaInsumos({ items }: { items: readonly InsumoResumen[] }) {
               to={`/insumos/${insumo.id}`}
               className="block p-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
             >
-              <div className="flex items-baseline gap-2">
-                <span className="font-medium">{insumo.nombre}</span>
-                {!insumo.activo && <EtiquetaInactivo />}
+              <div className="flex items-center gap-3">
+                <CuadroIcono icono={iconoDe(insumo)} />
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-medium">{insumo.nombre}</span>
+                    {!insumo.activo && <EtiquetaInactivo />}
+                  </div>
+                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
+                    {insumo.categoria?.nombre ?? 'Sin categoría'} · se lleva en{' '}
+                    {insumo.unidadBase.codigo} · {String(insumo.cantidadPresentaciones)}{' '}
+                    presentaciones
+                  </p>
+                </div>
               </div>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                {insumo.categoria?.nombre ?? 'Sin categoría'} · se lleva en{' '}
-                {insumo.unidadBase.codigo} · {String(insumo.cantidadPresentaciones)} presentaciones
-              </p>
             </Link>
           </li>
         ))}
@@ -193,7 +323,8 @@ function ListaInsumos({ items }: { items: readonly InsumoResumen[] }) {
             <tr key={insumo.id} className="transition hover:bg-slate-50 dark:hover:bg-slate-800/60">
               {/* min-h-14 en la celda: filas altas, cómodas de tocar. */}
               <td className="px-4 py-3">
-                <Link to={`/insumos/${insumo.id}`} className="flex min-h-10 items-center gap-2">
+                <Link to={`/insumos/${insumo.id}`} className="flex min-h-10 items-center gap-3">
+                  <CuadroIcono icono={iconoDe(insumo)} />
                   <span className="font-medium">{insumo.nombre}</span>
                   {insumo.codigo !== null && (
                     <span className="font-mono text-xs text-slate-600 dark:text-slate-400">
