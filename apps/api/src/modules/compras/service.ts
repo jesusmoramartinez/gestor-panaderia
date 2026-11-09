@@ -200,19 +200,19 @@ function transicionInvalida(numero: number, estado: EstadoOrden, accion: AccionO
   const verbos: Record<AccionOrden, string> = {
     editar: 'editar',
     pedir: 'marcar como pedida',
-    recibir: 'recibir',
+    recibir: 'registrar entregas',
     cancelar: 'cancelar',
-    cerrar: 'cerrar con faltante',
+    cerrar: 'dar por terminada',
   };
   const pista =
     accion === 'recibir' && estado === 'BORRADOR'
       ? ' Marcala como pedida primero.'
       : accion === 'cancelar' && estado === 'PARCIAL'
-        ? ' Ya llegó una parte: si el resto no va a llegar, cerrala con faltante.'
+        ? ' Ya llegó una parte: si el resto no va a llegar, dala por terminada.'
         : '';
   return new AppError(
     'TRANSICION_INVALIDA',
-    `La orden ${String(numero)} está ${estado.toLowerCase()}: no se puede ${verbos[accion]}.${pista}`,
+    `La compra ${String(numero)} está ${estado.toLowerCase()}: no se puede ${verbos[accion]}.${pista}`,
     409,
     { estado, accion },
   );
@@ -446,10 +446,10 @@ export async function editarOrden(
 
   await prisma.$transaction(async (tx) => {
     if (!(await repo.bloquearOrden(tx, ctx.empresaId, ordenId))) {
-      throw errores.noEncontrado('La orden de compra');
+      throw errores.noEncontrado('La compra');
     }
     const orden = await repo.ordenPlana(tx, ctx.empresaId, ordenId);
-    if (!orden) throw errores.noEncontrado('La orden de compra');
+    if (!orden) throw errores.noEncontrado('La compra');
 
     if (!puedeHacer(orden.estado, 'editar')) {
       throw transicionInvalida(orden.numero, orden.estado, 'editar');
@@ -457,7 +457,7 @@ export async function editarOrden(
     if ((await repo.contarRecepcionesDeOrden(tx, ordenId)) > 0) {
       throw new AppError(
         'ORDEN_CON_RECEPCIONES',
-        `La orden ${String(orden.numero)} ya tuvo recepciones: no se puede editar.`,
+        `La compra ${String(orden.numero)} ya tuvo entregas: no se puede editar.`,
         409,
       );
     }
@@ -534,10 +534,10 @@ async function transicionar(
 ): Promise<OrdenDetalle> {
   await prisma.$transaction(async (tx) => {
     if (!(await repo.bloquearOrden(tx, ctx.empresaId, ordenId))) {
-      throw errores.noEncontrado('La orden de compra');
+      throw errores.noEncontrado('La compra');
     }
     const orden = await repo.ordenPlana(tx, ctx.empresaId, ordenId);
-    if (!orden) throw errores.noEncontrado('La orden de compra');
+    if (!orden) throw errores.noEncontrado('La compra');
 
     if (!puedeHacer(orden.estado, accion)) {
       throw transicionInvalida(orden.numero, orden.estado, accion);
@@ -593,7 +593,7 @@ export function cerrarOrden(
 
 export async function obtenerOrden(ctx: Contexto, ordenId: string): Promise<OrdenDetalle> {
   const fila = await repo.ordenDetalle(ctx.empresaId, ordenId);
-  if (!fila) throw errores.noEncontrado('La orden de compra');
+  if (!fila) throw errores.noEncontrado('La compra');
   // El encargado ve solo las órdenes de SUS sucursales.
   if (!puedeOperarEn(ctx, fila.sucursalId)) throw errores.sucursalNoPermitida();
 
@@ -903,10 +903,10 @@ export async function recibirDeOrden(
 
   const { id } = await prisma.$transaction(async (tx) => {
     if (!(await repo.bloquearOrden(tx, ctx.empresaId, ordenId))) {
-      throw errores.noEncontrado('La orden de compra');
+      throw errores.noEncontrado('La compra');
     }
     const orden = await repo.ordenPlana(tx, ctx.empresaId, ordenId);
-    if (!orden) throw errores.noEncontrado('La orden de compra');
+    if (!orden) throw errores.noEncontrado('La compra');
 
     // A qué sucursal llega ESTA entrega: la que eligió (C-28) o la de la
     // orden. Por eso el control lo hace el servicio y no el middleware: la

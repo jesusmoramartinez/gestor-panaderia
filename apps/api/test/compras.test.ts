@@ -335,7 +335,7 @@ describe('la máquina de estados de la orden', () => {
     });
     const noCancela = await api.post(`/api/ordenes-compra/${parcial.id}/cancelar`, {});
     expect(noCancela.status).toBe(409);
-    expect((noCancela.cuerpo as { mensaje: string }).mensaje).toMatch(/cerrala con faltante/);
+    expect((noCancela.cuerpo as { mensaje: string }).mensaje).toMatch(/dala por terminada/);
 
     const cerrada = await api.post(`/api/ordenes-compra/${parcial.id}/cerrar`, {
       nota: 'El molino no tiene más',

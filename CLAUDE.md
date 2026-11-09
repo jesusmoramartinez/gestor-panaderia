@@ -13,7 +13,7 @@ Sistema web de gestión para una panadería con **dos sucursales**: una **centra
 
 El sistema está pensado para **venderse después a otras panaderías**, así que es **multi-empresa** desde el primer día: todas las tablas de negocio llevan `empresa_id` y los datos de una empresa nunca pueden verse desde otra.
 
-**Etapa actual (desde el 8/11/2026): MVP de compras en acopio.** Marcelo paga por adelantado y el proveedor le entrega por tandas: el sistema lleva **lo que le deben** (mercadería y su valor), los **pagos** con sus **comprobantes** (imágenes), el **historial** de cada compra y **reportes** de todo. Se construye sobre las compras de la Fase 8; Stock, Transferencias y Reposición quedan ocultos. Fases 12a a 12d en `PLAN.md` ("Etapa 2"). Producción y recetas, después.
+**Etapa actual (desde el 8/11/2026): MVP de compras en acopio.** Marcelo paga por adelantado y el proveedor le entrega por tandas: el sistema lleva **lo que le deben** (mercadería y su valor), los **pagos** con sus **comprobantes** (imágenes), el **historial** de cada compra y **reportes** de todo. Se construye sobre las compras de la Fase 8; Stock, Transferencias y Reposición quedan ocultos. Fases 12a a 12d en `PLAN.md` ("Etapa 2"), **hechas** (falta desplegarlas). Producción y recetas, después. Manual para el usuario: `docs/manual-de-uso.md`.
 
 **Etapa anterior: control de stock de materia prima (insumos).** Fases 0 a 10 cerradas y la 11 desplegada en el **VPS de DigitalOcean** que ya corre la clínica (Docker + Caddy, `panaderia-j.duckdns.org`; paso a paso en `docs/deploy-vps.md`, la configuración del servidor en el repo `infra`): el stock se calcula desde el kardex, se ajusta contra lo contado, entra por compras (orden → recepción total o parcial) con costo promedio ponderado, se mueve entre sucursales con transferencias en dos pasos, y la reposición dice qué traer de la Central y qué comprar. Las respuestas del cliente a las preguntas C-1 a C-19 están en `PLAN.md` §5.1, y la investigación sobre cómo compra sus insumos una panadería, en §5.2.
 
@@ -157,6 +157,8 @@ Si una función necesita `req`, no es un servicio. Si un servicio necesita saber
 - Esconder un botón NO es seguridad: `usePuede()` es comodidad, la defensa está en la API.
 - **Un `<select>` cuyas opciones llegan de la API va CONTROLADO** (`value={form.watch(...)}`). Si el valor se pone antes de que lleguen las opciones (al editar, al precargar), uno no controlado sigue mostrando la primera opción con otro valor adentro: lo que se ve deja de ser lo que se guarda. Pasó tres veces (nota 18).
 - Para pasar datos a otra pantalla (precargar una orden desde la reposición) se usa el `state` de la navegación, no la URL, y se lee verificando la forma (`leerPrecarga`).
+- **Primero el celular** (Etapa 2, C-27): en el celular el menú es una barra fija abajo; las pantallas del MVP se prueban en Playwright en los proyectos `celular` (390×844) y `pc` (1280×800), con el control de que nada se salga de costado, y **se miran las capturas** (lo que no desborda igual puede ser incómodo).
+- Las palabras de la pantalla son las del usuario: **compra** y **entrega** (en el código siguen `ordenCompra` y `recepcion`).
 
 ### Errores
 
@@ -169,6 +171,9 @@ Si una función necesita `req`, no es un servicio. Si un servicio necesita saber
 - Un esquema Zod por operación, en `packages/shared/src/esquemas/`.
 - Los tipos se **derivan** del esquema con `z.infer`, nunca se escriben dos veces.
 - La API no confía en nada: valida todo lo que entra, aunque el front ya haya validado.
+- **Un dato mal escrito es un 400, nunca un 500.** En Zod 4 una validación que falla NO frena las siguientes: la que verifica "es un número" va con `{ abort: true }`, porque las de después llaman a `aDecimal`, que lanza (nota 22).
+- La plata se normaliza con `normalizarImporte` ("18.500" son dieciocho mil quinientos); las cantidades, con `normalizarNumero`.
+- Un archivo subido se reconoce por sus primeros bytes (`detectarTipoImagen`), nunca por el nombre ni por lo que dice el navegador.
 
 ### Tests
 

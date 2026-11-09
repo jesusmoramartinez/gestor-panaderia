@@ -1157,7 +1157,7 @@ Dos consecuencias lindas de ese diseño:
 
 **Pendientes después del primer deploy (29/10/2026):**
 
-1. **Que Marcelo entre con su propia contraseña y su propio email.** Hoy la web no tiene pantalla para cambiar la contraseña ni el email: el alta se hizo con una contraseña generada al azar y `marcelo@panaderia.com` (temporal). Hace falta: "cambiar mi contraseña" (pide la actual) para todos, y que el dueño pueda cambiar el email de un usuario (auditado). Pedido del cliente.
+1. ~~**Que Marcelo entre con su propia contraseña y su propio email.**~~ **HECHO en la Fase 12a** (pantalla "Mi cuenta"; falta que él la use después del deploy). Hoy la web no tiene pantalla para cambiar la contraseña ni el email: el alta se hizo con una contraseña generada al azar y `marcelo@panaderia.com` (temporal). Hace falta: "cambiar mi contraseña" (pide la actual) para todos, y que el dueño pueda cambiar el email de un usuario (auditado). Pedido del cliente.
 2. **Urgente: client_id propio de Google Drive para rclone.** rclone avisa que el client_id compartido "deja de funcionar durante 2026": los backups a Drive se pueden cortar cualquier día (healthchecks.io avisaría; la copia local sigue). Crear uno en Google Cloud (https://rclone.org/drive/#making-your-own-client-id), `rclone config reconnect gdrive:` en la laptop y copiar el `rclone.conf` al servidor.
 3. HSTS de Caddy a un año (`max-age=31536000`) cuando pase una semana sin problemas, igual que la clínica.
 4. Con el catálogo vacío, Stock dice "No hay insumos que coincidan con la búsqueda": para un cliente nuevo, mejor "Todavía no cargaste insumos" con un link a Insumos.
@@ -1208,7 +1208,7 @@ Todo con `empresa_id`, RLS, auditoría y las reglas de siempre (sección 3.0).
 - **Plata a favor**: si una compra pagada se **cierra con faltante**, lo que faltó × su precio es plata que el proveedor le debe devolver. Sale de los mismos números.
 - **Historial** de una compra: la unión, ordenada por fecha, de su creación, pagos, entregas, notas y cierre o anulación. No es una tabla nueva: se arma con lo que ya está guardado.
 
-### Fase 12a — Lo que me deben (y el menú del MVP)
+### Fase 12a — Lo que me deben (y el menú del MVP) ✅
 
 - Menú: **Lo que me deben** (inicio) · **Compras** · **Proveedores** · **Insumos** · **Reportes**. Stock, Transferencias y Reposición, ocultos (no borrados).
 - Pantalla **Lo que me deben**: por proveedor, cada insumo pendiente con unidades y valor en plata; total de plata adelantada sin entregar; compras abiertas ordenadas por antigüedad.
@@ -1217,7 +1217,11 @@ Todo con `empresa_id`, RLS, auditoría y las reglas de siempre (sección 3.0).
 
 **Terminado cuando:** Marcelo carga una compra de 100 bolsas, registra dos tandas de 20 y la pantalla dice "te deben 60 bolsas ($…)", en el celular y en la PC (Playwright en las dos medidas, con capturas mirada), y entra con su propia contraseña.
 
-### Fase 12b — Pagos y comprobantes
+- ✅ 100 bolsas, 20 + 20 → "faltan 60 × Bolsa 25 kg · $ 1.200.000,00" (`acopio.test.ts` y `mvp-me-deben.spec.ts`, en celular 390×844 y PC 1280×800; capturas miradas).
+- ✅ Cambiar contraseña (pide la actual, cierra las otras sesiones, mismo límite de intentos que el login) y email. _(Que Marcelo entre con la suya se verifica en producción, después del deploy.)_
+- ✅ Ninguna pantalla del menú se sale de costado en el celular (control automático en Playwright). Lo que encontraron las capturas: el encabezado ocupaba media pantalla y el menú se cortaba → **barra de menú abajo en el celular**, tema en "Mi cuenta"; y el vocabulario: **compra** y **entrega** en vez de "orden"/"OC" y "recepción", también en los mensajes de error de la API.
+
+### Fase 12b — Pagos y comprobantes ✅
 
 - Cargar un pago: monto (por defecto, lo que falta pagar), fecha, medio y una o más imágenes. Anular un pago (auditado).
 - Foto opcional del remito al registrar una entrega.
@@ -1226,14 +1230,22 @@ Todo con `empresa_id`, RLS, auditoría y las reglas de siempre (sección 3.0).
 
 **Terminado cuando:** una compra pagada con una captura de Mercado Pago muestra "Pagada" y la imagen; un backup automático la incluye y una restauración la devuelve idéntica; un archivo que no es imagen (aunque se llame `.jpg`) se rechaza (test).
 
-### Fase 12c — Historial de cada compra
+- ✅ "Pagada" con la captura: `pagos.test.ts` (la imagen vuelve byte por byte, con el tipo de sus bytes y `nosniff`) y `mvp-pagos.spec.ts` (la miniatura CARGA y el visor la abre, sin errores de CSP).
+- ✅ Backup y restauración: el mismo `pg_dump` en SQL plano del script de backup, restaurado en una base nueva → las imágenes con la misma huella md5.
+- ✅ Un texto con nombre de imagen se rechaza (400) y no queda ni el pago; también pagar de más, sin total, dos veces en el mismo instante (el candado de la orden; probado rompiéndolo a propósito).
+- Cambios respecto de lo planeado: `comprobante` sin `ancho`/`alto` (no se usaban); las notas (`nota_compra`) entraron en la misma migración; **plata a favor** (compra pagada y terminada sin que llegue todo) en "Lo que me deben".
+- Encontrado por los tests: seis esquemas numéricos respondían **500** a un texto ("mil", "1,2,3") porque en Zod 4 las validaciones siguen después de una que falla, y `normalizarNumero` no era idempotente. Arreglado con `abort: true` y un test que lo cubre. Y la plata se lee como en Argentina: "18.500" son dieciocho mil quinientos (`normalizarImporte`).
+
+### Fase 12c — Historial de cada compra ✅
 
 - Línea de tiempo: creada, pagos, entregas, notas, cierre o anulación, con fecha y quién.
 - Agregar notas libres ("dicen que la próxima viene el 19").
 
 **Terminado cuando:** el historial de una compra con 2 pagos, 3 entregas y una nota muestra los 6 eventos en orden (test + Playwright).
 
-### Fase 12d — Reportes
+- ✅ `historial.test.ts` (shared, función pura) y de la API, más `mvp-pagos.spec.ts`. Probado que falla si se saca el ordenamiento. Incluye ediciones, entregas y pagos anulados, cierre y cancelación (estos dos salen de la auditoría).
+
+### Fase 12d — Reportes ✅
 
 Todos con filtro de fechas, **exportar a CSV** (se abre en Excel, sin dependencias) e **impresión** limpia. Gráficos en SVG hechos a mano: pocos, grandes, con el valor escrito.
 
@@ -1251,6 +1263,10 @@ Todos con filtro de fechas, **exportar a CSV** (se abre en Excel, sin dependenci
 | 10  | Entregas por semana                   | ¿Qué llegó, de quién y a qué sucursal?                         |
 
 **Terminado cuando:** cada reporte tiene un test con números conocidos (los totales cuadran con la suma de pagos y entregas), su CSV abre en una planilla, y se miró en el celular y en la PC.
+
+- ✅ `reportes.test.ts` (shared): un juego de datos armado a mano, cada número calculado de antemano; `reportes.test.ts` (API): lo que trae la base cuadra con lo cargado (sin canceladas, borradores ni pagos anulados), el período, permisos y aislamiento.
+- ✅ CSV: Playwright lo BAJA y verifica el BOM, el `;` y la coma decimal (lo que necesita un Excel en español). _(Abrirlo en el Excel de Marcelo se confirma con él.)_
+- ✅ Los 11 reportes (los 10 del plan y "plata adelantada y a favor" separado de "mercadería") en celular y PC, sin desbordes, con capturas miradas; impresión sin menú ni botones. Lo que corrigieron las capturas: el gasto por mes arranca en el primer mes con datos, y la tabla de precios pasó a tres columnas.
 
 ### Fase 13 y siguientes — después del MVP
 
