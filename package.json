@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Sistema de gesti\u00f3n para panader\u00eda \u2014 control de stock de materia prima",
+  "description": "Sistema de gestión para panadería — control de stock de materia prima",
   "packageManager": "pnpm@12.9.1",
   "engines": {
     "node": ">=22"
@@ -26,6 +26,7 @@
     "db:generate": "pnpm --filter @panaderia/api db:generate",
     "db:migrate": "pnpm --filter @panaderia/api db:migrate",
     "db:seed": "pnpm --filter @panaderia/api db:seed",
+    "db:demo": "pnpm --filter @panaderia/api db:demo",
     "db:studio": "pnpm --filter @panaderia/api db:studio",
     "db:reset": "pnpm --filter @panaderia/api db:reset",
     "db:backup": "./scripts/backup.sh",

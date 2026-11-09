@@ -11,6 +11,9 @@ import { CuadroIcono } from './iconosInsumo';
 import { Saldo, Semaforo } from './stock';
 import { useSucursalActiva } from './SucursalActiva';
 
+/** El orden de la lista: lo que hay que reponer, arriba. */
+const URGENCIA: Record<FilaStock['estado'], number> = { CRITICO: 0, BAJO: 1, OK: 2 };
+
 // Botones de fila: más bajos que los de un formulario (40 px, que siguen
 // siendo cómodos de tocar) para que una lista larga no sea toda botones.
 const CLASE_BOTON_FILA =
@@ -25,8 +28,12 @@ const CLASE_BOTON_FILA =
  *     La cantidad la calcula el servidor con el saldo de ese momento (ver
  *     `agotar` en la API), así que no importa si la pantalla quedó vieja.
  *
- * Solo muestra lo que TIENE (saldo distinto de cero): con un catálogo de 100
- * insumos, la lista de todos sería casi toda ceros.
+ * Muestra lo que TIENE (saldo distinto de cero) y lo que se TERMINÓ y hace
+ * falta (en cero pero con un mínimo: "sin stock"). Lo demás no: con un
+ * catálogo de 100 insumos, la lista de todos sería casi toda ceros.
+ *
+ * Primero lo urgente: sin stock, después bajo, después el resto; y dentro de
+ * cada grupo, por nombre.
  */
 export function PanelStock() {
   const { sucursales, activa, cambiar } = useSucursalActiva();
@@ -44,10 +51,15 @@ export function PanelStock() {
   }
 
   const texto = busqueda.trim().toLowerCase();
-  const conStock = (stock.data?.items ?? []).filter(
-    (fila) =>
-      !aDecimal(fila.saldo).isZero() && (texto === '' || fila.nombre.toLowerCase().includes(texto)),
-  );
+  const conStock = (stock.data?.items ?? [])
+    .filter(
+      (fila) =>
+        (!aDecimal(fila.saldo).isZero() || aDecimal(fila.stockMinimo).greaterThan(0)) &&
+        (texto === '' || fila.nombre.toLowerCase().includes(texto)),
+    )
+    .sort(
+      (a, b) => URGENCIA[a.estado] - URGENCIA[b.estado] || a.nombre.localeCompare(b.nombre, 'es'),
+    );
 
   return (
     <section aria-labelledby="titulo-stock" className="space-y-3">
