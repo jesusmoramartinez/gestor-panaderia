@@ -30,7 +30,7 @@ test('compra 100 bolsas, le entregan 20 en Laferrere y 20 en Catán: le deben 60
 
   // --- La compra, desde el botón de la pantalla principal.
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Lo que me deben' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Acopio' })).toBeVisible();
   await page.getByRole('link', { name: 'Nueva compra' }).click();
   await elegir(desplegable(page, 'Proveedor'), 'Molino San Jorge');
   await elegir(desplegable(page, 'Insumo'), 'Harina 0000');
@@ -65,7 +65,7 @@ test('compra 100 bolsas, le entregan 20 en Laferrere y 20 en Catán: le deben 60
   await expect(page.getByRole('heading', { name: /Entrega \d+/ })).toBeVisible();
 
   // --- Lo que me deben: 60 bolsas de esa compra, $1.200.000.
-  await page.getByRole('link', { name: 'Me deben' }).click();
+  await page.getByRole('link', { name: 'Acopio' }).click();
   const renglon = page.getByRole('link', { name: new RegExp(`Compra ${numero ?? ''} ·`) });
   await expect(renglon.getByText('faltan 60 × Bolsa 25 kg')).toBeVisible();
   await expect(renglon.getByText('$ 1.200.000,00')).toBeVisible();

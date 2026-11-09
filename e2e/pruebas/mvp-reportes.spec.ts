@@ -13,7 +13,7 @@ import { api, entrar, sucursales, vigilarErrores } from './ayudas.js';
  * imprimir no salen el menú ni los botones.
  */
 const REPORTES = [
-  'Mercadería que me deben',
+  'Mercadería pendiente de entrega',
   'Plata adelantada y a favor',
   'Compras abiertas por antigüedad',
   'Gasto por mes',

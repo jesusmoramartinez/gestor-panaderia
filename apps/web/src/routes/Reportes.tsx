@@ -35,7 +35,7 @@ import { obtenerReportes } from '../lib/reportes';
  * recargar o mandar el link deja todo igual.
  */
 const REPORTES = [
-  { id: 'me-deben', titulo: 'Mercadería que me deben', deHoy: true },
+  { id: 'me-deben', titulo: 'Mercadería pendiente de entrega', deHoy: true },
   { id: 'adelantado', titulo: 'Plata adelantada y a favor', deHoy: true },
   { id: 'abiertas', titulo: 'Compras abiertas por antigüedad', deHoy: true },
   { id: 'gasto-mes', titulo: 'Gasto por mes', deHoy: false },
@@ -353,11 +353,11 @@ function ReporteDeHoy({
         }}
       >
         <GraficoBarras
-          titulo="Lo que me debe cada proveedor"
+          titulo="Pendiente de entrega por proveedor"
           etiquetas={datos.proveedores.map((d) => d.proveedor.nombre)}
           series={[
             {
-              nombre: 'Me debe',
+              nombre: 'Pendiente',
               color: 'fill-corteza dark:fill-corteza-claro',
               valores: datos.proveedores.map((d) => aNumero(d.valorPendiente)),
               textos: datos.proveedores.map((d) => formatearDinero(d.valorPendiente)),

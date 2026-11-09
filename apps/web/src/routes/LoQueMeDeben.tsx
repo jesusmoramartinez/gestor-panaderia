@@ -14,7 +14,7 @@ import { usePuede } from '../hooks/useSesion';
 import { obtenerLoQueMeDeben } from '../lib/acopio';
 
 /**
- * LO QUE ME DEBEN (Fase 12a): la pantalla de inicio del MVP.
+ * ACOPIO, "lo que me deben" (Fase 12a): la pantalla de inicio del MVP.
  *
  * Responde, de arriba hacia abajo y en el orden en que se lee en el celular:
  *   1. ¿Cuánto me deben en total? (dos números grandes)
@@ -35,7 +35,12 @@ export function LoQueMeDeben() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Lo que me deben</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Acopio</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Lo que ya compraste y todavía no te entregaron.
+          </p>
+        </div>
         {puedePedir && (
           <Link to="/compras/nueva" className={`${CLASE_BOTON_PRIMARIO} grid place-items-center`}>
             Nueva compra
@@ -46,7 +51,7 @@ export function LoQueMeDeben() {
       {nadaPendiente ? (
         <section className="rounded-2xl bg-white p-6 text-center shadow-sm dark:bg-slate-900">
           <p className="text-lg font-semibold text-emerald-800 dark:text-emerald-300">
-            No te deben nada.
+            No hay mercadería pendiente de entrega.
           </p>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             Cuando cargues una compra, acá vas a ver lo que falta que te entreguen y cuánto vale.

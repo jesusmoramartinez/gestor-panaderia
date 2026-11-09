@@ -108,8 +108,8 @@ test('paga con la captura, entrega con la foto del remito, y anula el pago', asy
   expect(await cargoLaImagen(page, 'button[aria-label="Ver Remito 1"] img')).toBe(true);
 
   // --- Lo que me deben: pagó todo y llegaron 30 → tiene $1.400.000 suyos ahí.
-  await page.getByRole('link', { name: 'Me deben' }).click();
-  await expect(page.getByRole('heading', { name: 'Lo que me deben' })).toBeVisible();
+  await page.getByRole('link', { name: 'Acopio' }).click();
+  await expect(page.getByRole('heading', { name: 'Acopio' })).toBeVisible();
   const plataTuya = page
     .getByRole('heading', { name: 'Plata tuya en los proveedores' })
     .locator('..');

@@ -110,11 +110,12 @@ const ETIQUETA: Record<Tema, string> = {
  * del proyecto: en la tablet abre el selector del sistema, ya es accesible con
  * teclado y no hay que mantener el foco a mano.
  */
-export function SelectorTema() {
+/** `ancho`: que ocupe todo el ancho de lo que lo contiene (en la barra lateral). */
+export function SelectorTema({ ancho = false }: { ancho?: boolean }) {
   const { tema, cambiar } = useTema();
 
   return (
-    <label className="flex items-center gap-2 text-sm">
+    <label className={`flex items-center gap-2 text-sm${ancho ? ' w-full' : ''}`}>
       <span className="sr-only">Tema de la pantalla</span>
       <select
         value={tema}
@@ -123,7 +124,7 @@ export function SelectorTema() {
           if (esTema(elegido)) cambiar(elegido);
         }}
         aria-label="Tema de la pantalla"
-        className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+        className={`${ancho ? 'w-full ' : ''}min-h-11 rounded-lg border border-slate-300 bg-white px-3 font-medium text-slate-800 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100`}
       >
         {TEMAS.map((opcion) => (
           <option key={opcion} value={opcion}>
