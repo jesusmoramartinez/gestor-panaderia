@@ -12,6 +12,7 @@ import { Link, useParams } from 'react-router';
 
 import { EtiquetaAtrasada, EtiquetaEstadoOrden, textoCantidad } from '../components/compras';
 import { DialogoConfirmacion } from '../components/Dialogo';
+import { HistorialCompra } from '../components/HistorialCompra';
 import { EtiquetaEstadoPago, PagosDeCompra } from '../components/PagosDeCompra';
 import {
   CLASE_BOTON_PELIGRO,
@@ -66,6 +67,8 @@ export function OrdenDetalle() {
     onSuccess: async (actualizada) => {
       queryClient.setQueryData(['orden', id], actualizada);
       await queryClient.invalidateQueries({ queryKey: ['ordenes'] });
+      await queryClient.invalidateQueries({ queryKey: ['historial-compra', id] });
+      await queryClient.invalidateQueries({ queryKey: ['me-deben'] });
       setCierre(null);
       setNota('');
     },
@@ -235,6 +238,8 @@ export function OrdenDetalle() {
           </ul>
         )}
       </Tarjeta>
+
+      <HistorialCompra ordenId={datos.id} />
 
       <DialogoConfirmacion
         abierto={cierre !== null}

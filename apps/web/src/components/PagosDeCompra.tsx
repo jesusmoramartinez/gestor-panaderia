@@ -80,6 +80,7 @@ export function PagosDeCompra({ orden }: { orden: OrdenDetalle }) {
     queryClient.setQueryData(['orden', orden.id], actualizada);
     await queryClient.invalidateQueries({ queryKey: ['ordenes'] });
     await queryClient.invalidateQueries({ queryKey: ['me-deben'] });
+    await queryClient.invalidateQueries({ queryKey: ['historial-compra', orden.id] });
   }
 
   const anular = useMutation({

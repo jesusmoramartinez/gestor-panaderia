@@ -121,7 +121,8 @@ test('paga con la captura, entrega con la foto del remito, y anula el pago', asy
   await page.getByPlaceholder(/Cargué un cero de más/).fill('lo cargué en la compra equivocada');
   await page.getByRole('button', { name: 'Anular pago' }).click();
   await expect(page.getByText('Sin pagar').first()).toBeVisible();
-  await expect(page.getByText(/lo cargué en la compra equivocada/)).toBeVisible();
+  // Aparece en el pago tachado y en el historial.
+  await expect(page.getByText(/lo cargué en la compra equivocada/)).toHaveCount(2);
 
   expect(
     await page.evaluate(
@@ -150,4 +151,52 @@ test('un archivo que no es imagen no se puede elegir como comprobante', async ({
   });
   await expect(page.getByText('"factura.pdf" no es una imagen.')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Imagen 1' })).toHaveCount(0);
+});
+
+test('el historial muestra todo en orden, y se puede dejar una nota', async ({ page }, info) => {
+  const errores = vigilarErrores(page);
+  await entrar(page, 'dueno@panaderia.test');
+  const { central } = await sucursales(page);
+  const proveedores = await api<{ id: string; nombre: string }[]>(page, 'GET', '/proveedores');
+  const molino = proveedores.find((p) => p.nombre === 'Molino San Jorge');
+  const insumos = await api<{ items: { id: string }[] }>(
+    page,
+    'GET',
+    '/insumos?busqueda=Harina%200000',
+  );
+  const compra = await api<{ id: string; lineas: { id: string }[] }>(
+    page,
+    'POST',
+    '/ordenes-compra',
+    {
+      sucursalId: central,
+      proveedorId: molino?.id,
+      lineas: [{ insumoId: insumos.items[0]?.id, cantidad: '10', precioUnitario: '1000' }],
+    },
+  );
+  await api(page, 'POST', `/ordenes-compra/${compra.id}/pagos`, {
+    monto: '10000',
+    medio: 'EFECTIVO',
+  });
+  await api(page, 'POST', `/ordenes-compra/${compra.id}/recepciones`, {
+    lineas: [{ lineaOrdenId: compra.lineas[0]?.id, cantidad: '4', precioUnitario: '1000' }],
+  });
+
+  await page.goto(`/compras/${compra.id}`);
+  const historial = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Historial' }) });
+  await expect(historial.getByRole('listitem')).toHaveCount(3);
+  await expect(historial.getByRole('listitem').nth(0)).toContainText('Compra creada y pedida');
+  await expect(historial.getByRole('listitem').nth(1)).toContainText('· Efectivo');
+  await expect(historial.getByRole('listitem').nth(2)).toContainText(/Entrega \d+ en Central/);
+
+  await page.getByPlaceholder(/Anotar algo/).fill('la próxima viene el 19');
+  await page.getByRole('button', { name: 'Agregar nota' }).click();
+  await expect(historial.getByRole('listitem')).toHaveCount(4);
+  await expect(historial.getByRole('listitem').nth(3)).toContainText('«la próxima viene el 19»');
+  await expect(page.getByPlaceholder(/Anotar algo/)).toHaveValue('');
+  await historial.screenshot({ path: info.outputPath('historial.png') });
+
+  expect(errores).toEqual([]);
 });

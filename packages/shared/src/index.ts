@@ -9,6 +9,7 @@ export * from './dominio/acopio.js';
 export * from './dominio/compras.js';
 export * from './dominio/decimal.js';
 export * from './dominio/fecha.js';
+export * from './dominio/historial.js';
 export * from './dominio/permisos.js';
 export * from './dominio/reposicion.js';
 export * from './dominio/stock.js';

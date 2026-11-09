@@ -103,6 +103,8 @@ export function RecibirOrden() {
       for (const clave of [
         ['orden', id],
         ['ordenes'],
+        ['historial-compra', id],
+        ['me-deben'],
         ['recepciones'],
         ['stock'],
         ['alertas'],

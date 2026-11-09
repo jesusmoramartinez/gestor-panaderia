@@ -53,6 +53,8 @@ export function RecepcionDetalle() {
         ['recepciones'],
         ['ordenes'],
         ['orden'],
+        ['historial-compra'],
+        ['me-deben'],
         ['stock'],
         ['alertas'],
         ['reposicion'],

@@ -91,3 +91,80 @@ export function comprasTerminadasConPagos(empresaId: string, sucursalIds: readon
     select: SELECCION_COMPRA,
   });
 }
+
+// ===========================================================================
+// Historial de una compra (Fase 12c)
+// ===========================================================================
+
+const PERSONA = { select: { id: true, nombre: true } } as const;
+
+/** Todo lo que hace falta para armar el historial de una compra. */
+export function datosHistorial(empresaId: string, ordenId: string) {
+  return prisma.ordenCompra.findFirst({
+    where: { id: ordenId, empresaId },
+    select: {
+      sucursalId: true,
+      estado: true,
+      createdAt: true,
+      pedidaAt: true,
+      cerradaAt: true,
+      notaCierre: true,
+      usuario: PERSONA,
+      lineas: { select: { cantidad: true, precioUnitario: true } },
+      pagos: {
+        select: {
+          fecha: true,
+          monto: true,
+          medio: true,
+          nota: true,
+          anuladoAt: true,
+          motivoAnulacion: true,
+          usuario: PERSONA,
+          anuladoPor: PERSONA,
+          _count: { select: { comprobantes: true } },
+        },
+      },
+      recepciones: {
+        select: {
+          id: true,
+          numero: true,
+          fecha: true,
+          numeroRemito: true,
+          anuladaAt: true,
+          motivoAnulacion: true,
+          sucursal: { select: { nombre: true } },
+          usuario: PERSONA,
+          anuladaPor: PERSONA,
+          _count: { select: { comprobantes: true } },
+          lineas: {
+            orderBy: { insumo: { nombre: 'asc' } },
+            select: {
+              cantidad: true,
+              insumo: { select: { nombre: true, unidadBase: { select: { codigo: true } } } },
+              presentacion: { select: { nombre: true } },
+            },
+          },
+        },
+      },
+      anotaciones: { select: { createdAt: true, texto: true, usuario: PERSONA } },
+    },
+  });
+}
+
+/**
+ * Las ediciones y el cierre o la cancelación de una compra, que no tienen
+ * tabla propia: quedaron en la auditoría (la acción "pedir" también es un
+ * ACTUALIZAR, y se distingue porque lleva `accion: 'pedir'`).
+ */
+export function auditoriaDeCompra(empresaId: string, ordenId: string) {
+  return prisma.auditoria.findMany({
+    where: {
+      empresaId,
+      entidad: 'orden_compra',
+      entidadId: ordenId,
+      accion: { in: ['ACTUALIZAR', 'ANULAR'] },
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { accion: true, createdAt: true, datosDespues: true, usuario: PERSONA },
+  });
+}

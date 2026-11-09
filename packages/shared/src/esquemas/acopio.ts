@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { TIPOS_EVENTO } from '../dominio/historial.js';
 import { EstadoOrdenSchema } from './compras.js';
 
 /**
@@ -83,3 +84,27 @@ export const LoQueMeDebenSchema = z.object({
   comprasAbiertas: z.array(CompraAbiertaSchema),
 });
 export type LoQueMeDeben = z.infer<typeof LoQueMeDebenSchema>;
+
+// ===========================================================================
+// Historial y notas de una compra (Fase 12c)
+// ===========================================================================
+
+/** Una nota libre en una compra: "dicen que la próxima viene el 19". */
+export const AgregarNotaSchema = z.object({
+  texto: z.string().trim().min(1, 'Escribí la nota').max(500, 'Máximo 500 caracteres'),
+});
+export type AgregarNotaInput = z.infer<typeof AgregarNotaSchema>;
+
+export const EventoHistorialSchema = z.object({
+  tipo: z.enum(TIPOS_EVENTO),
+  fecha: z.string(),
+  usuario: Referencia.nullable(),
+  titulo: z.string(),
+  detalle: z.string().nullable(),
+  recepcionId: z.uuid().nullable(),
+});
+
+export const HistorialCompraSchema = z.object({
+  eventos: z.array(EventoHistorialSchema),
+});
+export type HistorialCompra = z.infer<typeof HistorialCompraSchema>;
