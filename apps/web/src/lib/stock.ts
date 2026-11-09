@@ -1,4 +1,5 @@
 import {
+  type AgotarStockInput,
   type AjustarStockInput,
   type AnularMovimientoInput,
   type CargarConsumoInput,
@@ -48,6 +49,15 @@ export function cargarSaldoInicial(entrada: CargarSaldoInicialInput) {
 
 export function cargarConsumo(entrada: CargarConsumoInput) {
   return pedirApi('/api/movimientos/consumo', {
+    metodo: 'POST',
+    cuerpo: entrada,
+    esquema: ResultadoCargaSchema,
+  });
+}
+
+/** "Se terminó": el servidor descuenta, como consumo, todo lo que queda. */
+export function agotarStock(entrada: AgotarStockInput) {
+  return pedirApi('/api/movimientos/agotar', {
     metodo: 'POST',
     cuerpo: entrada,
     esquema: ResultadoCargaSchema,

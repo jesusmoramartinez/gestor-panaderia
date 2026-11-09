@@ -2,6 +2,7 @@
 import {
   AjustarStockSchema,
   AnularMovimientoSchema,
+  AgotarStockSchema,
   CargarConsumoSchema,
   CargarMermaSchema,
   CargarSaldoInicialSchema,
@@ -27,6 +28,12 @@ export async function postSaldoInicial(req: Request, res: Response): Promise<voi
 export async function postConsumo(req: Request, res: Response): Promise<void> {
   const entrada = parsear(CargarConsumoSchema, req.body);
   res.status(201).json(await service.cargarConsumo(contextoDe(req), entrada));
+}
+
+/** "Se terminó": descuenta todo lo que queda, como consumo. */
+export async function postAgotar(req: Request, res: Response): Promise<void> {
+  const entrada = parsear(AgotarStockSchema, req.body);
+  res.status(201).json(await service.agotar(contextoDe(req), entrada));
 }
 
 export async function postMerma(req: Request, res: Response): Promise<void> {

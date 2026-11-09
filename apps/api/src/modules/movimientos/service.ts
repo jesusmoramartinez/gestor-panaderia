@@ -1,6 +1,7 @@
 // CAPA 3 — SERVICIO: las reglas del negocio. No sabe que existe HTTP.
 import {
   aDecimal,
+  type AgotarStockInput,
   type AjustarStockInput,
   type AnularMovimientoInput,
   type CargarConsumoInput,
@@ -243,6 +244,58 @@ export async function cargarConsumo(
       forzar: entrada.forzar,
     }),
   );
+
+  return armarResultado(registro);
+}
+
+/**
+ * "SE TERMINÓ": descuenta como CONSUMO todo lo que queda de un insumo.
+ *
+ * La cantidad no viene en el pedido: se lee el saldo adentro de la
+ * transacción y DESPUÉS del candado (regla 12), igual que en el ajuste. Así,
+ * si otra persona descontó algo un segundo antes, se descuenta lo que
+ * quedaba de verdad, y el saldo termina en cero exacto.
+ *
+ * Es un consumo y no un ajuste porque eso es lo que pasó: se usó (decisión
+ * del cliente, 9/11/2026). Cuenta como uso en el historial y en los reportes.
+ */
+export async function agotar(ctx: Contexto, entrada: AgotarStockInput): Promise<ResultadoCarga> {
+  await exigirSucursalDeLaEmpresa(ctx, entrada.sucursalId);
+  const insumo = await repo.buscarInsumo(ctx.empresaId, entrada.insumoId);
+  if (!insumo) throw errores.noEncontrado('El insumo');
+
+  const registro = await prisma.$transaction(async (tx) => {
+    await bloquearContador(tx, ctx.empresaId, entrada.sucursalId, entrada.insumoId);
+    const saldo = await saldoActual(tx, ctx.empresaId, entrada.sucursalId, entrada.insumoId);
+
+    // En cero (o en negativo, si alguien lo forzó) no hay nada que descontar:
+    // un consumo de cero no significa nada y el CHECK de la base lo rechaza.
+    if (saldo.lessThanOrEqualTo(0)) {
+      throw new AppError(
+        'SIN_STOCK_PARA_DESCONTAR',
+        `"${insumo.nombre}" ya está en cero: no hay nada que descontar.`,
+        409,
+        { insumoId: insumo.id },
+      );
+    }
+
+    return registrarMovimientos(
+      tx,
+      ctx,
+      [
+        {
+          sucursalId: entrada.sucursalId,
+          insumoId: entrada.insumoId,
+          tipo: 'CONSUMO',
+          cantidad: saldo,
+          unidadId: null, // el saldo está en la unidad base
+          motivoId: null,
+          notas: entrada.notas ?? 'Se terminó',
+        },
+      ],
+      { fecha: fechaDe(entrada.fecha) },
+    );
+  });
 
   return armarResultado(registro);
 }
@@ -519,6 +572,8 @@ export async function obtenerStock(ctx: Contexto, filtro: FiltroStock): Promise<
       nombre: insumo.nombre,
       codigo: insumo.codigo,
       categoriaNombre: insumo.categoria?.nombre ?? null,
+      // El suyo, o el de su categoría: lo que se dibuja al lado del nombre.
+      icono: insumo.icono ?? insumo.categoria?.icono ?? null,
       unidadBaseCodigo: insumo.unidadBase.codigo,
       saldo,
       stockMinimo,

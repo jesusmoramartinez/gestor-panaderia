@@ -112,6 +112,22 @@ export const CargarConsumoSchema = CargaBase.extend({
 export type CargarConsumoInput = z.infer<typeof CargarConsumoSchema>;
 
 /**
+ * "SE TERMINÓ": descontar como consumo TODO lo que queda de un insumo.
+ *
+ * No lleva cantidad, y es a propósito: la cantidad la calcula el servidor,
+ * leyendo el saldo DESPUÉS de tomar el candado. Si la pantalla mandara la
+ * cantidad que muestra, y mientras tanto alguien descontó algo, el pedido
+ * descontaría de más (y fallaría) o dejaría un resto que ya no existe.
+ */
+export const AgotarStockSchema = z.object({
+  sucursalId: z.uuid('Hay que elegir una sucursal'),
+  insumoId: z.uuid('Hay que elegir un insumo'),
+  fecha: FechaHechoSchema,
+  notas: NotasOpcional,
+});
+export type AgotarStockInput = z.infer<typeof AgotarStockSchema>;
+
+/**
  * Una merma. El motivo es OBLIGATORIO y va a nivel de la operación, no de
  * cada línea: el caso real es "se mojó el depósito" o "venció el lote", y eso
  * afecta a varios insumos por la misma razón. Si hubiera dos razones
@@ -345,6 +361,8 @@ export const FilaStockSchema = z.object({
   nombre: z.string(),
   codigo: z.string().nullable(),
   categoriaNombre: z.string().nullable(),
+  /** El ícono del insumo, o el de su categoría si no tiene uno propio. */
+  icono: z.string().nullable(),
   unidadBaseCodigo: z.string(),
   /** El saldo: la SUMA de los movimientos. Nunca un campo guardado. */
   saldo: z.string(),

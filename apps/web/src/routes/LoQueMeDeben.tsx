@@ -21,7 +21,8 @@ import { obtenerLoQueMeDeben } from '../lib/acopio';
  *   2. ¿Quién me debe qué? (una tarjeta por proveedor, el que más debe primero)
  *   3. ¿Qué compras siguen abiertas, y desde cuándo? (la más vieja primero)
  */
-export function LoQueMeDeben() {
+/** `enInicio`: va en una columna del inicio (sin ancho propio, título más chico). */
+export function LoQueMeDeben({ enInicio = false }: { enInicio?: boolean }) {
   const puedePedir = usePuede('compra:pedir');
   const deudas = useQuery({ queryKey: ['me-deben'], queryFn: obtenerLoQueMeDeben });
 
@@ -33,10 +34,15 @@ export function LoQueMeDeben() {
   const nadaPendiente = datos.proveedores.length === 0 && datos.aFavor.length === 0;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className={enInicio ? 'space-y-5' : 'mx-auto max-w-3xl space-y-5'}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Acopio</h1>
+          {/* En el inicio es una sección (h2), no el título de la página. */}
+          {enInicio ? (
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Acopio</h2>
+          ) : (
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Acopio</h1>
+          )}
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Lo que ya compraste y todavía no te entregaron.
           </p>
@@ -61,11 +67,13 @@ export function LoQueMeDeben() {
         <>
           <div className="grid gap-3 sm:grid-cols-2">
             <Numero
+              chico={enInicio}
               titulo="Te deben en mercadería"
               valor={formatearDinero(datos.valorPendiente)}
               detalle="Lo que falta entregar, al precio de cada compra"
             />
             <Numero
+              chico={enInicio}
               titulo="Plata tuya en los proveedores"
               valor={formatearDinero(datos.adelantadoSinEntregar)}
               detalle="Lo que pagaste y todavía no te entregaron"
@@ -140,11 +148,26 @@ export function LoQueMeDeben() {
   );
 }
 
-function Numero({ titulo, valor, detalle }: { titulo: string; valor: string; detalle: string }) {
+/** `chico`: en la columna del inicio hay la mitad de ancho; $ 5.279.483,00 no entraba. */
+function Numero({
+  titulo,
+  valor,
+  detalle,
+  chico = false,
+}: {
+  titulo: string;
+  valor: string;
+  detalle: string;
+  chico?: boolean;
+}) {
   return (
     <section className="rounded-2xl bg-white p-5 shadow-sm dark:bg-slate-900">
       <h2 className="text-sm font-medium text-slate-600 dark:text-slate-400">{titulo}</h2>
-      <p className="mt-1 text-3xl font-bold text-slate-900 tabular-nums dark:text-slate-50">
+      <p
+        className={`mt-1 font-bold break-words text-slate-900 tabular-nums dark:text-slate-50 ${
+          chico ? 'text-2xl' : 'text-3xl'
+        }`}
+      >
         {valor}
       </p>
       <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{detalle}</p>

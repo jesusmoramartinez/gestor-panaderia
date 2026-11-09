@@ -789,6 +789,11 @@ describe('GET /api/stock', () => {
       activo: true,
     });
 
+    // Uno recién creado, que nunca se cargó. (Antes se usaba la Harina 000 de
+    // la semilla, pero otros archivos de tests la mueven, y el resultado
+    // dependía del orden en que corrían los archivos.)
+    const sinCargarId = await insumoNuevo();
+
     const r = await api.get(`/api/stock?sucursalId=${centralId}`);
     expect(r.status).toBe(200);
     expect(StockPorSucursalSchema.safeParse(r.cuerpo).success).toBe(true);
@@ -802,12 +807,12 @@ describe('GET /api/stock', () => {
     expect(fila?.estado).toBe('BAJO');
     expect(fila?.cantidadMovimientos).toBe(1);
 
-    // Y los 28 insumos de la semilla también están, con saldo 0 y en CRITICO:
-    // un insumo que nunca se cargó tiene que verse, no ser invisible.
-    const harina = datos.items.find((item) => item.nombre === 'Harina 000');
-    expect(harina?.saldo).toBe('0');
-    expect(harina?.estado).toBe('CRITICO');
-    expect(harina?.cantidadMovimientos).toBe(0);
+    // Y un insumo que nunca se cargó también está, con saldo 0 y en CRITICO:
+    // tiene que verse, no ser invisible.
+    const sinCargar = datos.items.find((item) => item.insumoId === sinCargarId);
+    expect(sinCargar?.saldo).toBe('0');
+    expect(sinCargar?.estado).toBe('CRITICO');
+    expect(sinCargar?.cantidadMovimientos).toBe(0);
   });
 
   it('soloAlertas deja afuera lo que está OK, pero el resumen cuenta todo', async () => {
@@ -992,3 +997,95 @@ function esperaSigno(tipo: (typeof TIPOS_MOVIMIENTO)[number], cantidad: string):
   const positivo = !cantidad.startsWith('-');
   return SENTIDO_POR_TIPO[tipo] === 'ENTRADA' ? positivo : !positivo;
 }
+
+describe('"SE TERMINÓ": descontar todo lo que queda, como consumo', () => {
+  it('deja el saldo en cero exacto con UN consumo de todo lo que había', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const insumoId = await conSaldoInicial('37.5');
+
+    const r = await api.post('/api/movimientos/agotar', { sucursalId: centralId, insumoId });
+
+    expect(r.status).toBe(201);
+    expect(ResultadoCargaSchema.safeParse(r.cuerpo).success).toBe(true);
+    const [movimiento] = carga(r.cuerpo).movimientos;
+    expect(movimiento?.tipo).toBe('CONSUMO');
+    expect(movimiento?.cantidadBase).toBe('-37.5');
+    expect(movimiento?.notas).toBe('Se terminó');
+    expect(await saldoDe(insumoId)).toBe('0');
+  });
+
+  it('descuenta lo que queda DE VERDAD, no lo que la pantalla creía', async () => {
+    // La pantalla mostraba 50; mientras tanto alguien cargó un consumo de 20.
+    // Como la cantidad la calcula el servidor (con el candado), se descuenta 30.
+    await entrarComo('dueno@panaderia.test');
+    const insumoId = await conSaldoInicial('50');
+    await api.post('/api/movimientos/consumo', {
+      sucursalId: centralId,
+      lineas: [{ insumoId, cantidad: '20' }],
+    });
+
+    const r = await api.post('/api/movimientos/agotar', { sucursalId: centralId, insumoId });
+
+    expect(carga(r.cuerpo).movimientos[0]?.cantidadBase).toBe('-30');
+    expect(await saldoDe(insumoId)).toBe('0');
+  });
+
+  it('en cero no hay nada que descontar: 409 y no escribe nada', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const insumoId = await insumoNuevo();
+
+    const r = await api.post('/api/movimientos/agotar', { sucursalId: centralId, insumoId });
+
+    expect(r.status).toBe(409);
+    expect(codigoError(r)).toBe('SIN_STOCK_PARA_DESCONTAR');
+    expect(await prisma.movimientoStock.count({ where: { insumoId } })).toBe(0);
+  });
+
+  it('CONCURRENCIA: dos "se terminó" a la vez descuentan UNA sola vez', async () => {
+    // Sin el candado, los dos leerían saldo 10 y escribirían dos consumos de
+    // 10: el stock quedaría en −10.
+    await entrarComo('dueno@panaderia.test');
+    const insumoId = await conSaldoInicial('10');
+
+    const [a, b] = await Promise.all([
+      api.post('/api/movimientos/agotar', { sucursalId: centralId, insumoId }),
+      api.post('/api/movimientos/agotar', { sucursalId: centralId, insumoId }),
+    ]);
+
+    expect([a.status, b.status].sort()).toEqual([201, 409]);
+    // El segundo vio el saldo en cero DESPUÉS del candado. Si lo hubiera leído
+    // antes (10), recién el motor lo frenaría, con STOCK_INSUFICIENTE.
+    expect(codigoError(a.status === 409 ? a : b)).toBe('SIN_STOCK_PARA_DESCONTAR');
+    expect(await saldoDe(insumoId)).toBe('0');
+    expect(await prisma.movimientoStock.count({ where: { insumoId, tipo: 'CONSUMO' } })).toBe(1);
+  });
+
+  it('el empleado puede (tiene consumo:crear), pero solo en SU sucursal', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const enLaferrere = await conSaldoInicial('5', laferrereId);
+    const enCentral = await conSaldoInicial('5', centralId);
+
+    api.olvidarCookies();
+    await entrarComo('empleado@panaderia.test');
+    const suya = await api.post('/api/movimientos/agotar', {
+      sucursalId: laferrereId,
+      insumoId: enLaferrere,
+    });
+    expect(suya.status).toBe(201);
+
+    const ajena = await api.post('/api/movimientos/agotar', {
+      sucursalId: centralId,
+      insumoId: enCentral,
+    });
+    expect(ajena.status).toBe(403);
+    // Directo en la base: el empleado tampoco puede CONSULTAR la Central.
+    expect(await prisma.movimientoStock.count({ where: { insumoId: enCentral } })).toBe(1);
+  });
+
+  it('un dato mal escrito es un 400, no un 500', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const r = await api.post('/api/movimientos/agotar', { sucursalId: centralId, insumoId: 'x' });
+    expect(r.status).toBe(400);
+    expect(detallesError(r)['insumoId']).toBeDefined();
+  });
+});

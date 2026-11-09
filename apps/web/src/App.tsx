@@ -12,6 +12,7 @@ import { FormularioCompra } from './routes/FormularioCompra';
 import { HistorialInsumo } from './routes/HistorialInsumo';
 import { Login } from './routes/Login';
 import { LoQueMeDeben } from './routes/LoQueMeDeben';
+import { Principal } from './routes/Principal';
 import { MiCuenta } from './routes/MiCuenta';
 import { OrdenDetalle } from './routes/OrdenDetalle';
 import { Plantillas } from './routes/Plantillas';
@@ -44,6 +45,7 @@ export function App() {
         {/* El inicio de la etapa de stock ("Hoy en la sucursal"): oculto del
             menú en el MVP de compras, pero sigue andando. */}
         <Route path="/hoy" element={<Inicio />} />
+        <Route path="/acopio" element={<LoQueMeDeben />} />
         <Route path="/mi-cuenta" element={<MiCuenta />} />
         <Route path="/reportes" element={<Reportes />} />
         <Route path="/insumos" element={<Insumos />} />
@@ -99,8 +101,9 @@ export function App() {
 
 /**
  * El inicio depende de quién entra: el que ve compras (el dueño) arranca en
- * "Lo que me deben"; el que no ve plata, en el resumen de su sucursal.
+ * el stock y el acopio lado a lado; el que no ve plata, en el resumen de su
+ * sucursal.
  */
 function PaginaInicio() {
-  return usePuede('compra:ver') ? <LoQueMeDeben /> : <Inicio />;
+  return usePuede('compra:ver') ? <Principal /> : <Inicio />;
 }

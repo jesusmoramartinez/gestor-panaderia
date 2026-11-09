@@ -12,6 +12,7 @@ import {
   getHistorial,
   getMotivos,
   getStock,
+  postAgotar,
   postAjuste,
   postConsumo,
   postMerma,
@@ -62,6 +63,15 @@ movimientosRouter.post(
   requierePermiso('consumo:crear'),
   enSucursalDelCuerpo,
   postConsumo,
+);
+
+// "Se terminó": es un consumo (de todo lo que queda), con su mismo permiso.
+movimientosRouter.post(
+  '/movimientos/agotar',
+  requiereAutenticacion,
+  requierePermiso('consumo:crear'),
+  enSucursalDelCuerpo,
+  postAgotar,
 );
 
 movimientosRouter.post(

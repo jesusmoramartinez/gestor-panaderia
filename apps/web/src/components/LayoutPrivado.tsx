@@ -42,7 +42,8 @@ function useItemsMenu(): ItemMenu[] {
 
   return veCompras
     ? [
-        { a: '/', texto: 'Acopio', icono: <IconoAcopio /> },
+        { a: '/', texto: 'Inicio', icono: <IconoInicio /> },
+        { a: '/acopio', texto: 'Acopio', icono: <IconoAcopio /> },
         { a: '/compras', texto: 'Compras', icono: <IconoCompras /> },
         ...(veProveedores
           ? [{ a: '/proveedores', texto: 'Proveedores', icono: <IconoProveedores /> }]

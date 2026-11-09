@@ -345,6 +345,21 @@ describe('aislamiento entre empresas', () => {
     }
   });
 
+  it('no se puede dar por terminado ("se terminó") un insumo de otra empresa', async () => {
+    const vecina = await entrarComo('dueno@vecina.test');
+    const r = await api.post('/api/movimientos/agotar', {
+      sucursalId: vecina.sucursales[0]?.id ?? '',
+      insumoId: laferrere.harina000Id,
+    });
+    // Para la vecina ese insumo NO EXISTE: 404, no 403.
+    expect(r.status).toBe(404);
+    expect(
+      await prisma.movimientoStock.count({
+        where: { insumoId: laferrere.harina000Id, empresaId: { not: laferrere.empresaId } },
+      }),
+    ).toBe(0);
+  });
+
   it('no se puede cargar un consumo con un insumo de otra empresa', async () => {
     const vecina = await entrarComo('dueno@vecina.test');
     const suSucursal = vecina.sucursales[0]?.id ?? '';

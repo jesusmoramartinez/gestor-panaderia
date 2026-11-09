@@ -118,7 +118,8 @@ export function insumosParaStock(filtro: FiltroInsumosStock) {
       id: true,
       nombre: true,
       codigo: true,
-      categoria: { select: { nombre: true } },
+      icono: true,
+      categoria: { select: { nombre: true, icono: true } },
       unidadBase: { select: { codigo: true } },
     },
   });
