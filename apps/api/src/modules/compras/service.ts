@@ -802,9 +802,13 @@ export async function recibirDeOrden(
     const orden = await repo.ordenPlana(tx, ctx.empresaId, ordenId);
     if (!orden) throw errores.noEncontrado('La orden de compra');
 
-    // La sucursal no viene en el pedido: es la de la orden. Por eso el
-    // control lo hace el servicio y no el middleware.
-    if (!puedeOperarEn(ctx, orden.sucursalId)) throw errores.sucursalNoPermitida();
+    // A qué sucursal llega ESTA entrega: la que eligió (C-28) o la de la
+    // orden. Por eso el control lo hace el servicio y no el middleware: la
+    // sucursal puede no venir en el pedido.
+    const sucursalId = entrada.sucursalId ?? orden.sucursalId;
+    // sucursalesPermitidas sale de la base y es de ESTA empresa: si está ahí,
+    // la sucursal existe y es suya.
+    if (!puedeOperarEn(ctx, sucursalId)) throw errores.sucursalNoPermitida();
 
     if (!puedeHacer(orden.estado, 'recibir')) {
       throw transicionInvalida(orden.numero, orden.estado, 'recibir');
@@ -870,7 +874,7 @@ export async function recibirDeOrden(
     });
 
     const confirmada = await confirmarRecepcion(tx, ctx, {
-      sucursalId: orden.sucursalId,
+      sucursalId,
       proveedorId: orden.proveedorId,
       ordenCompraId: ordenId,
       fecha: entrada.fecha === null ? new Date() : new Date(entrada.fecha),

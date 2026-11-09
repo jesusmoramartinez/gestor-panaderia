@@ -72,7 +72,7 @@ export function OrdenDetalle() {
 
   if (orden.isError) return <MensajeError>{orden.error.message}</MensajeError>;
   if (orden.isPending) {
-    return <p className="text-sm text-slate-600 dark:text-slate-400">Cargando la orden...</p>;
+    return <p className="text-sm text-slate-600 dark:text-slate-400">Cargando la compra...</p>;
   }
 
   const datos = orden.data;
@@ -90,7 +90,7 @@ export function OrdenDetalle() {
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-            OC {datos.numero} · {datos.proveedor.nombre}
+            Compra {datos.numero} · {datos.proveedor.nombre}
           </h1>
           <EtiquetaEstadoOrden estado={datos.estado} />
           {datos.atrasada && <EtiquetaAtrasada fecha={datos.fechaEntregaEstimada} />}
@@ -118,7 +118,7 @@ export function OrdenDetalle() {
             to={`/compras/${datos.id}/recibir`}
             className={`${CLASE_BOTON_PRIMARIO} grid place-items-center`}
           >
-            Recibir mercadería
+            Registrar entrega
           </Link>
         )}
         {permitida('pedir') && (
@@ -169,7 +169,7 @@ export function OrdenDetalle() {
         <MensajeError>{transicion.error.message}</MensajeError>
       )}
 
-      <Tarjeta titulo="Pedido, recibido y pendiente">
+      <Tarjeta titulo="Comprado, entregado y lo que falta">
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {datos.lineas.map((linea) => {
             const falta = linea.pendienteBase !== '0';
@@ -212,7 +212,7 @@ export function OrdenDetalle() {
         </ul>
         {datos.totalEstimado !== null && (
           <p className="mt-3 text-right">
-            <span className="text-sm text-slate-600 dark:text-slate-400">Total estimado </span>
+            <span className="text-sm text-slate-600 dark:text-slate-400">Total </span>
             <span className="text-lg font-bold tabular-nums">
               {formatearDinero(datos.totalEstimado)}
             </span>
@@ -220,7 +220,7 @@ export function OrdenDetalle() {
         )}
       </Tarjeta>
 
-      <Tarjeta titulo="Recepciones de esta orden">
+      <Tarjeta titulo="Entregas de esta compra">
         {datos.recepciones.length === 0 ? (
           <p className="text-sm text-slate-600 dark:text-slate-400">Todavía no llegó nada.</p>
         ) : (

@@ -27,6 +27,33 @@ export const PasswordNuevaSchema = z
   .min(8, 'La contraseña debe tener al menos 8 caracteres')
   .max(200);
 
+/**
+ * Cambiar MI contraseña (Fase 12a). Pide la actual: si alguien encuentra la
+ * sesión abierta en la computadora de la panadería, no puede quedarse con la
+ * cuenta cambiándole la contraseña.
+ */
+export const CambiarPasswordSchema = z.object({
+  actual: z.string().min(1, 'Escribí tu contraseña actual').max(200),
+  nueva: PasswordNuevaSchema,
+});
+export type CambiarPasswordInput = z.infer<typeof CambiarPasswordSchema>;
+
+/** Lo mismo para la pantalla, que además pide repetir la nueva. */
+export const CambiarPasswordFormSchema = CambiarPasswordSchema.extend({
+  repetir: z.string(),
+}).refine((valores) => valores.nueva === valores.repetir, {
+  error: 'No coincide con la nueva',
+  path: ['repetir'],
+});
+export type CambiarPasswordFormInput = z.infer<typeof CambiarPasswordFormSchema>;
+
+/** Cambiar MI email. También pide la contraseña, por la misma razón. */
+export const CambiarEmailSchema = z.object({
+  email: EmailSchema,
+  password: z.string().min(1, 'Escribí tu contraseña').max(200),
+});
+export type CambiarEmailInput = z.infer<typeof CambiarEmailSchema>;
+
 export const CrearUsuarioSchema = z.object({
   email: EmailSchema,
   nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(120),

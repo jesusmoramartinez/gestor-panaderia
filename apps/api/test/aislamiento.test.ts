@@ -16,6 +16,7 @@ import type {
   UsuarioResumen,
   UsuarioSesion,
 } from '@panaderia/shared';
+import { LoQueMeDebenSchema } from '@panaderia/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { PASSWORD_DEV } from '../prisma/semilla.js';
@@ -720,6 +721,31 @@ describe('aislamiento entre empresas', () => {
     expect(filtroAjeno.status).toBe(403);
     const alertasAjenas = await api.get(`/api/alertas?sucursalId=${laferrere.sucursalCentralId}`);
     expect(alertasAjenas.status).toBe(403);
+  });
+
+  it('"lo que me deben" no cruza empresas', async () => {
+    // Laferrere le compra al Molino San Jorge y le queda todo por recibir.
+    await entrarComo('dueno@panaderia.test');
+    const creada = await api.post('/api/ordenes-compra', {
+      sucursalId: laferrere.sucursalCentralId,
+      proveedorId: laferrere.molinoId,
+      lineas: [{ insumoId: laferrere.harina000Id, cantidad: '7', precioUnitario: '1000' }],
+    });
+    expect(creada.status, JSON.stringify(creada.cuerpo)).toBe(201);
+    const ordenId = (creada.cuerpo as { id: string }).id;
+
+    // La vecina le compra al MISMO molino (otro registro, mismo nombre): no
+    // puede ver la compra de Laferrere ni su deuda.
+    api.olvidarCookies();
+    await entrarComo('dueno@vecina.test');
+    const r = await api.get('/api/acopio/me-deben');
+    expect(r.status).toBe(200);
+    const datos = LoQueMeDebenSchema.parse(r.cuerpo);
+    expect(datos.comprasAbiertas.some((c) => c.id === ordenId)).toBe(false);
+    expect(datos.proveedores.some((d) => d.proveedor.id === laferrere.molinoId)).toBe(false);
+    expect(
+      datos.proveedores.some((d) => d.renglones.some((renglon) => renglon.ordenId === ordenId)),
+    ).toBe(false);
   });
 
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {

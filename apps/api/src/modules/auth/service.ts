@@ -1,12 +1,18 @@
 // CAPA 3 — SERVICIO: las reglas. No sabe que existe HTTP.
 import { createHash, randomBytes } from 'node:crypto';
 
-import { permisosDe, type LoginInput, type UsuarioSesion } from '@panaderia/shared';
+import {
+  type CambiarEmailInput,
+  type CambiarPasswordInput,
+  type LoginInput,
+  permisosDe,
+  type UsuarioSesion,
+} from '@panaderia/shared';
 
 import { registrarAuditoria } from '../../lib/auditoria.js';
 import type { Contexto } from '../../lib/contexto.js';
 import { prisma } from '../../lib/db.js';
-import { errores } from '../../lib/errores.js';
+import { AppError, errores } from '../../lib/errores.js';
 import { LimitadorIntentos } from '../../lib/limitador.js';
 import { hashearPassword, verificarPassword } from '../../lib/password.js';
 import * as repo from './repo.js';
@@ -192,6 +198,107 @@ export async function logout(ctx: Contexto): Promise<void> {
       ip: ctx.ip ?? null,
     });
   });
+}
+
+// ===========================================================================
+// Mi cuenta (Fase 12a): cambiar mi contraseña y mi email
+// ===========================================================================
+
+/**
+ * Verifica la contraseña de quien está logueado antes de tocar su cuenta.
+ *
+ * Usa el MISMO límite de intentos que el login (por email): si no, este
+ * endpoint sería una puerta de atrás para adivinar contraseñas sin límite,
+ * con una sesión robada en la mano.
+ *
+ * `campo` es el nombre del input en la pantalla, para que el error aparezca
+ * abajo del campo correcto.
+ */
+async function exigirPassword(ctx: Contexto, password: string, campo: string) {
+  const usuario = await prisma.usuario.findFirst({
+    where: { id: ctx.usuarioId, empresaId: ctx.empresaId },
+    select: { id: true, email: true, passwordHash: true },
+  });
+  if (!usuario) throw errores.noAutenticado();
+
+  const estado = limitePorEmail.verificar(usuario.email);
+  if (!estado.permitido) throw errores.demasiadosIntentos(estado.esperarSegundos);
+
+  if (!(await verificarPassword(password, usuario.passwordHash))) {
+    limitePorEmail.registrarFallo(usuario.email);
+    throw new AppError('PASSWORD_INCORRECTA', 'La contraseña actual no es correcta.', 400, {
+      [campo]: 'No es tu contraseña actual',
+    });
+  }
+  limitePorEmail.limpiar(usuario.email);
+  return usuario;
+}
+
+/**
+ * Cambia MI contraseña.
+ *
+ * Cierra todas las OTRAS sesiones abiertas: si la cambiás porque alguien la
+ * sabía, esa persona tiene que quedar afuera ya, no cuando venza su sesión.
+ * La sesión desde la que se cambia sigue abierta.
+ */
+export async function cambiarPassword(ctx: Contexto, entrada: CambiarPasswordInput): Promise<void> {
+  if (entrada.actual === entrada.nueva) {
+    throw errores.datosInvalidos({ nueva: 'La nueva tiene que ser distinta de la actual' });
+  }
+  await exigirPassword(ctx, entrada.actual, 'actual');
+  // El hasheo va FUERA de la transacción: tarda ~130 ms a propósito.
+  const passwordHash = await hashearPassword(entrada.nueva);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.usuario.update({ where: { id: ctx.usuarioId }, data: { passwordHash } });
+    const cerradas = await tx.sesion.updateMany({
+      where: { usuarioId: ctx.usuarioId, id: { not: ctx.sesionId }, revocadaAt: null },
+      data: { revocadaAt: new Date() },
+    });
+    await registrarAuditoria(tx, {
+      empresaId: ctx.empresaId,
+      usuarioId: ctx.usuarioId,
+      entidad: 'usuario',
+      entidadId: ctx.usuarioId,
+      accion: 'ACTUALIZAR',
+      // Qué cambió, nunca el valor: ni el hash viejo ni el nuevo.
+      datosDespues: { cambio: 'password', otrasSesionesCerradas: cerradas.count },
+      ip: ctx.ip ?? null,
+    });
+  });
+}
+
+/** Cambia MI email (con el que entro). Devuelve la sesión actualizada. */
+export async function cambiarEmail(
+  ctx: Contexto,
+  entrada: CambiarEmailInput,
+): Promise<UsuarioSesion> {
+  const usuario = await exigirPassword(ctx, entrada.password, 'password');
+
+  if (entrada.email !== usuario.email) {
+    // El email es único en TODO el sistema: es lo que identifica la cuenta
+    // al entrar, sin decir de qué empresa es.
+    if (await repo.buscarUsuarioPorEmail(entrada.email)) {
+      throw new AppError('EMAIL_DUPLICADO', 'Ya hay una cuenta con ese email.', 409, {
+        email: 'Ya hay una cuenta con ese email',
+      });
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.usuario.update({ where: { id: ctx.usuarioId }, data: { email: entrada.email } });
+      await registrarAuditoria(tx, {
+        empresaId: ctx.empresaId,
+        usuarioId: ctx.usuarioId,
+        entidad: 'usuario',
+        entidadId: ctx.usuarioId,
+        accion: 'ACTUALIZAR',
+        datosAntes: { email: usuario.email },
+        datosDespues: { email: entrada.email },
+        ip: ctx.ip ?? null,
+      });
+    });
+  }
+
+  return datosDeSesion(ctx);
 }
 
 /**

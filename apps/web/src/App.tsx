@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router';
 
 import { RutaProtegida } from './components/RutaProtegida';
+import { usePuede } from './hooks/useSesion';
 import { Inicio } from './routes/Inicio';
 import { InsumoDetalle } from './routes/InsumoDetalle';
 import { InsumoNuevo } from './routes/InsumoNuevo';
@@ -11,6 +12,8 @@ import { Compras } from './routes/Compras';
 import { FormularioCompra } from './routes/FormularioCompra';
 import { HistorialInsumo } from './routes/HistorialInsumo';
 import { Login } from './routes/Login';
+import { LoQueMeDeben } from './routes/LoQueMeDeben';
+import { MiCuenta } from './routes/MiCuenta';
 import { OrdenDetalle } from './routes/OrdenDetalle';
 import { Plantillas } from './routes/Plantillas';
 import { RecepcionDetalle } from './routes/RecepcionDetalle';
@@ -37,7 +40,11 @@ export function App() {
       <Route path="/login" element={<Login />} />
 
       <Route element={<RutaProtegida />}>
-        <Route path="/" element={<Inicio />} />
+        <Route path="/" element={<PaginaInicio />} />
+        {/* El inicio de la etapa de stock ("Hoy en la sucursal"): oculto del
+            menú en el MVP de compras, pero sigue andando. */}
+        <Route path="/hoy" element={<Inicio />} />
+        <Route path="/mi-cuenta" element={<MiCuenta />} />
         <Route path="/insumos" element={<Insumos />} />
         {/* El orden importa: /insumos/nuevo tiene que ir ANTES de
             /insumos/:id, porque si no "nuevo" se tomaría como un id. */}
@@ -87,4 +94,12 @@ export function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+/**
+ * El inicio depende de quién entra: el que ve compras (el dueño) arranca en
+ * "Lo que me deben"; el que no ve plata, en el resumen de su sucursal.
+ */
+function PaginaInicio() {
+  return usePuede('compra:ver') ? <LoQueMeDeben /> : <Inicio />;
 }

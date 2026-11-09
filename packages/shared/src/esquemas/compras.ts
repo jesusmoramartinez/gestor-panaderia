@@ -170,6 +170,12 @@ export const LineaRecepcionOrdenSchema = z.object({
 });
 
 export const RecepcionDeOrdenSchema = DatosRecepcion.extend({
+  /**
+   * A qué sucursal llegó ESTA entrega (C-28: "él elige a qué sucursal
+   * llega"). Null = la de la orden. Una compra de 100 bolsas puede entregarse
+   * 20 en Catán y 20 en Laferrere: lo que falta se cuenta por compra.
+   */
+  sucursalId: UuidOpcional,
   lineas: z
     .array(LineaRecepcionOrdenSchema)
     .min(1, 'Hay que recibir al menos una línea')
@@ -454,6 +460,7 @@ const CantidadRecibidaSchema = z
   .refine((valor) => aDecimal(valor).greaterThanOrEqualTo(0), 'No puede ser negativo');
 
 export const RecibirOrdenFormSchema = DatosRecepcion.extend({
+  sucursalId: UuidOpcional,
   lineas: z
     .array(
       z.object({
@@ -484,6 +491,7 @@ export type RecibirOrdenFormInput = z.infer<typeof RecibirOrdenFormSchema>;
 export function aRecepcionDeOrden(valores: RecibirOrdenFormInput): RecepcionDeOrdenInput {
   return {
     fecha: valores.fecha,
+    sucursalId: valores.sucursalId,
     numeroRemito: valores.numeroRemito,
     numeroFactura: valores.numeroFactura,
     notas: valores.notas,

@@ -23,13 +23,15 @@ import {
   MensajeError,
   Tarjeta,
 } from '../components/formulario';
-import { usePuede } from '../hooks/useSesion';
+import { usePuede, useSesion } from '../hooks/useSesion';
 import { obtenerOrden, recibirOrden } from '../lib/compras';
 import { aplicarErroresDelServidor } from '../lib/erroresFormulario';
 
 /** Lo pendiente de cada línea, con el precio de la orden: "recibir todo". */
 function todoLoPendiente(orden: OrdenDetalle) {
   return {
+    // Por defecto, la sucursal de la compra; se puede cambiar (C-28).
+    sucursalId: orden.sucursal.id,
     fecha: '',
     numeroRemito: '',
     numeroFactura: '',
@@ -50,21 +52,32 @@ function todoLoPendiente(orden: OrdenDetalle) {
  * La pantalla arranca con TODO lo pendiente cargado y el precio de la orden:
  * el caso más común es que llegó todo y al precio acordado, y ahí alcanza con
  * un solo botón. Si llegó menos, se corrige la cantidad; si no llegó un
- * insumo, se deja en cero. Si cambió el precio, se corrige (C-9): manda lo
- * que se pagó, no lo que se había pedido.
+ * insumo, se deja en cero.
+ *
+ * Etapa 2: cada entrega elige a qué sucursal llega (C-28), y el precio NO se
+ * vuelve a pedir si la compra ya lo tiene: cada compra mantiene su precio
+ * (C-22). Solo se pregunta si el renglón se compró sin precio.
  */
 export function RecibirOrden() {
   const { id = '' } = useParams();
   const navegar = useNavigate();
   const queryClient = useQueryClient();
   const puede = usePuede('compra:recibir');
+  const sucursales = useSesion().data?.sucursales ?? [];
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
 
   const orden = useQuery({ queryKey: ['orden', id], queryFn: () => obtenerOrden(id) });
 
   const form = useForm({
     resolver: zodResolver(RecibirOrdenFormSchema),
-    defaultValues: { fecha: '', numeroRemito: '', numeroFactura: '', notas: '', lineas: [] },
+    defaultValues: {
+      sucursalId: '',
+      fecha: '',
+      numeroRemito: '',
+      numeroFactura: '',
+      notas: '',
+      lineas: [],
+    },
   });
 
   // Se precarga UNA vez, cuando llega la orden (mismo criterio que al editar).
@@ -102,7 +115,7 @@ export function RecibirOrden() {
   if (!puede) return <MensajeError>No tenés permiso para recibir mercadería.</MensajeError>;
   if (orden.isError) return <MensajeError>{orden.error.message}</MensajeError>;
   if (orden.isPending) {
-    return <p className="text-sm text-slate-600 dark:text-slate-400">Cargando la orden...</p>;
+    return <p className="text-sm text-slate-600 dark:text-slate-400">Cargando la compra...</p>;
   }
 
   const datos = orden.data;
@@ -125,14 +138,13 @@ export function RecibirOrden() {
           to={`/compras/${datos.id}`}
           className="text-sm text-corteza hover:underline dark:text-corteza-claro"
         >
-          ← Volver a la OC {datos.numero}
+          ← Volver a la compra {datos.numero}
         </Link>
         <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-50">
-          Recibir OC {datos.numero} · {datos.proveedor.nombre}
+          Entrega de la compra {datos.numero} · {datos.proveedor.nombre}
         </h1>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Entra al stock de <strong>{datos.sucursal.nombre}</strong>. Lo que no llegó, dejalo en
-          cero: queda pendiente para otra entrega.
+          Lo que no llegó, dejalo en cero: queda pendiente para otra entrega.
         </p>
       </div>
 
@@ -147,6 +159,27 @@ export function RecibirOrden() {
         noValidate
         className="space-y-4"
       >
+        <Tarjeta titulo="Adónde llegó">
+          {/* Controlado (regla del proyecto): las opciones son de la sesión y
+              el valor se precarga con la sucursal de la compra. */}
+          <Campo etiqueta="Sucursal" error={form.formState.errors.sucursalId?.message}>
+            <select
+              className={CLASE_CONTROL}
+              value={form.watch('sucursalId') ?? ''}
+              onChange={(evento) => {
+                form.setValue('sucursalId', evento.target.value);
+              }}
+            >
+              {sucursales.map((sucursal) => (
+                <option key={sucursal.id} value={sucursal.id}>
+                  {sucursal.nombre}
+                  {sucursal.id === datos.sucursal.id ? ' (la de la compra)' : ''}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </Tarjeta>
+
         <Tarjeta titulo="Qué llegó">
           <div className="mb-3 flex flex-wrap gap-2">
             <button
@@ -184,10 +217,15 @@ export function RecibirOrden() {
                   ? formatearDinero(costoPorUnidadBase(precio, linea.factorConversion))
                   : null;
 
+              // C-22: si la compra ya tiene precio, ese es el que vale.
+              const precioFijo = linea.precioUnitario;
+
               return (
                 <li
                   key={linea.id}
-                  className="grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-[2fr_1fr_1.2fr] dark:border-slate-700"
+                  className={`grid gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700 ${
+                    precioFijo === null ? 'sm:grid-cols-[2fr_1fr_1.2fr]' : 'sm:grid-cols-[2fr_1fr]'
+                  }`}
                 >
                   <div>
                     <p className="font-medium">{linea.insumo.nombre}</p>
@@ -199,6 +237,7 @@ export function RecibirOrden() {
                         unidad,
                         formatearCantidad,
                       )}
+                      {precioFijo !== null && ` · a ${formatearDinero(precioFijo)} c/u`}
                     </p>
                   </div>
                   <Campo
@@ -212,18 +251,20 @@ export function RecibirOrden() {
                       {...form.register(`${ruta}.cantidad`)}
                     />
                   </Campo>
-                  <Campo
-                    etiqueta={linea.presentacion === null ? `Precio por ${unidad}` : 'Precio c/u'}
-                    error={erroresLineas?.[indice]?.precioUnitario?.message}
-                    ayuda={costo === null ? undefined : `= ${costo} por ${unidad}`}
-                  >
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className={CLASE_CONTROL}
-                      {...form.register(`${ruta}.precioUnitario`)}
-                    />
-                  </Campo>
+                  {precioFijo === null && (
+                    <Campo
+                      etiqueta={linea.presentacion === null ? `Precio por ${unidad}` : 'Precio c/u'}
+                      error={erroresLineas?.[indice]?.precioUnitario?.message}
+                      ayuda={costo === null ? undefined : `= ${costo} por ${unidad}`}
+                    >
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className={CLASE_CONTROL}
+                        {...form.register(`${ruta}.precioUnitario`)}
+                      />
+                    </Campo>
+                  )}
                 </li>
               );
             })}
@@ -287,7 +328,7 @@ export function RecibirOrden() {
             Cancelar
           </Link>
           <button type="submit" disabled={recibir.isPending} className={CLASE_BOTON_PRIMARIO}>
-            {recibir.isPending ? 'Guardando...' : 'Registrar recepción'}
+            {recibir.isPending ? 'Guardando...' : 'Registrar entrega'}
           </button>
         </div>
       </form>

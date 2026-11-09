@@ -44,7 +44,7 @@ export function Compras() {
         <div className="mr-auto">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Compras</h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Pedir no suma stock: lo suma la recepción, cuando la mercadería llega.
+            Lo que le compraste a cada proveedor, y lo que te va entregando.
           </p>
         </div>
         <Link
@@ -58,12 +58,12 @@ export function Compras() {
             to="/recepciones/nueva"
             className={`${CLASE_BOTON_SECUNDARIO} grid place-items-center`}
           >
-            Recepción sin orden
+            Llegó sin compra cargada
           </Link>
         )}
         {puedePedir && (
           <Link to="/compras/nueva" className={`${CLASE_BOTON_PRIMARIO} grid place-items-center`}>
-            Nueva orden
+            Nueva compra
           </Link>
         )}
       </div>
@@ -71,8 +71,8 @@ export function Compras() {
       <div role="tablist" className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
         {(
           [
-            ['ordenes', 'Órdenes'],
-            ['recepciones', 'Recepciones'],
+            ['ordenes', 'Compras'],
+            ['recepciones', 'Entregas'],
           ] as const
         ).map(([valor, texto]) => (
           <button
@@ -161,7 +161,7 @@ function FilaOrden({ orden }: { orden: OrdenResumen }) {
         className="block rounded-2xl bg-white p-4 shadow-sm transition hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60"
       >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="font-semibold">OC {orden.numero}</span>
+          <span className="font-semibold">Compra {orden.numero}</span>
           <span className="font-medium">{orden.proveedor.nombre}</span>
           <EtiquetaEstadoOrden estado={orden.estado} />
           {orden.atrasada && <EtiquetaAtrasada fecha={orden.fechaEntregaEstimada} />}
@@ -194,7 +194,7 @@ function ListaRecepciones() {
       {recepciones.isError && <MensajeError>{recepciones.error.message}</MensajeError>}
       {recepciones.data?.items.length === 0 && (
         <p className="rounded-2xl bg-white p-8 text-center text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-400">
-          Todavía no se registró ninguna recepción.
+          Todavía no se registró ninguna entrega.
         </p>
       )}
       <ul className="space-y-2">
@@ -217,7 +217,7 @@ export function FilaRecepcion({ recepcion }: { recepcion: RecepcionResumen }) {
         }`}
       >
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="font-semibold">Recepción {recepcion.numero}</span>
+          <span className="font-semibold">Entrega {recepcion.numero}</span>
           <span className="font-medium">{recepcion.proveedor.nombre}</span>
           {anulada && <EtiquetaAnulada />}
           <span className="ml-auto font-semibold tabular-nums">
@@ -226,7 +226,9 @@ export function FilaRecepcion({ recepcion }: { recepcion: RecepcionResumen }) {
         </div>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           {formatearFechaArgentina(new Date(recepcion.fecha))} · {recepcion.sucursal.nombre}
-          {recepcion.orden === null ? ' · sin orden' : ` · OC ${String(recepcion.orden.numero)}`}
+          {recepcion.orden === null
+            ? ' · sin compra cargada'
+            : ` · compra ${String(recepcion.orden.numero)}`}
           {recepcion.numeroRemito !== null && ` · remito ${recepcion.numeroRemito}`}
         </p>
       </Link>

@@ -5,6 +5,7 @@
 // la extensión del archivo COMPILADO (.js), aunque el archivo fuente sea .ts.
 // TypeScript lo entiende y resuelve al .ts correspondiente.
 export * from './constantes.js';
+export * from './dominio/acopio.js';
 export * from './dominio/compras.js';
 export * from './dominio/decimal.js';
 export * from './dominio/fecha.js';
@@ -13,6 +14,7 @@ export * from './dominio/reposicion.js';
 export * from './dominio/stock.js';
 export * from './dominio/transferencias.js';
 export * from './dominio/unidades.js';
+export * from './esquemas/acopio.js';
 export * from './esquemas/auth.js';
 export * from './esquemas/compras.js';
 export * from './esquemas/insumos.js';

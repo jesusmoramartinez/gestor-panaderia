@@ -56,8 +56,9 @@ test('de la alerta a la transferencia y a la orden, con dos botones', async ({ p
   }
 
   // --- El inicio: la Central (la sucursal activa del dueño) está bien, porque
-  // tiene 120 y su mínimo es 100. Lo que falta es en Laferrere.
-  await page.goto('/');
+  // tiene 120 y su mínimo es 100. Lo que falta es en Laferrere. (En el MVP
+  // de compras, ese inicio quedó en /hoy: "/" es "Lo que me deben".)
+  await page.goto('/hoy');
   await expect(page.getByRole('heading', { name: 'Hoy en Central' })).toBeVisible();
 
   // --- La reposición.

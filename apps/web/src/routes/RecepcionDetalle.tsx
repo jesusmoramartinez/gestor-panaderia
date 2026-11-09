@@ -67,7 +67,7 @@ export function RecepcionDetalle() {
 
   if (recepcion.isError) return <MensajeError>{recepcion.error.message}</MensajeError>;
   if (recepcion.isPending) {
-    return <p className="text-sm text-slate-600 dark:text-slate-400">Cargando la recepción...</p>;
+    return <p className="text-sm text-slate-600 dark:text-slate-400">Cargando la entrega...</p>;
   }
 
   const datos = recepcion.data;
@@ -84,7 +84,7 @@ export function RecepcionDetalle() {
         </Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-            Recepción {datos.numero} · {datos.proveedor.nombre}
+            Entrega {datos.numero} · {datos.proveedor.nombre}
           </h1>
           {anulada && <EtiquetaAnulada />}
         </div>
@@ -95,7 +95,7 @@ export function RecepcionDetalle() {
             <>
               {' · '}
               <Link to={`/compras/${datos.orden.id}`} className="underline">
-                OC {datos.orden.numero}
+                Compra {datos.orden.numero}
               </Link>
             </>
           )}
@@ -178,13 +178,13 @@ export function RecepcionDetalle() {
           }}
           className={CLASE_BOTON_PELIGRO}
         >
-          Anular recepción
+          Anular entrega
         </button>
       )}
 
       <DialogoConfirmacion
         abierto={anulando}
-        titulo={`Anular la recepción ${String(datos.numero)}`}
+        titulo={`Anular la entrega ${String(datos.numero)}`}
         textoConfirmar={necesitaForzar === null ? 'Anular' : 'Anular igual (queda en negativo)'}
         trabajando={anular.isPending}
         onConfirmar={() => {

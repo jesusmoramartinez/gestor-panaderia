@@ -74,15 +74,15 @@ const CONFIGURACION: Record<
   }
 > = {
   'orden-nueva': {
-    titulo: 'Nueva orden de compra',
-    ayuda: 'Lo que le pedís al proveedor. NO suma stock: eso pasa cuando llega.',
+    titulo: 'Nueva compra',
+    ayuda: 'Lo que le compraste al proveedor. Después vas registrando lo que te entrega.',
     volverA: '/compras',
     volverTexto: 'Volver a compras',
     conPrecio: true,
     permiso: 'compra:pedir',
   },
   'orden-editar': {
-    titulo: 'Editar orden de compra',
+    titulo: 'Editar compra',
     ayuda: 'Se puede editar mientras no haya llegado nada.',
     volverA: '/compras',
     volverTexto: 'Volver a compras',
@@ -90,7 +90,7 @@ const CONFIGURACION: Record<
     permiso: 'compra:pedir',
   },
   recepcion: {
-    titulo: 'Recepción sin orden',
+    titulo: 'Llegó sin compra cargada',
     ayuda:
       'Llegó mercadería que no tenía orden (la compra por teléfono). Suma stock apenas la guardás.',
     volverA: '/compras',

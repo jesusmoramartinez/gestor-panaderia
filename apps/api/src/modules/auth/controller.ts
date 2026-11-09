@@ -1,5 +1,5 @@
 // CAPA 2 — CONTROLADOR: traduce entre HTTP y el servicio. Sin reglas de negocio.
-import { LoginSchema } from '@panaderia/shared';
+import { CambiarEmailSchema, CambiarPasswordSchema, LoginSchema } from '@panaderia/shared';
 import type { Request, Response } from 'express';
 
 import { contextoDe } from '../../lib/contexto.js';
@@ -31,4 +31,15 @@ export async function postLogout(req: Request, res: Response): Promise<void> {
 
 export async function getMe(req: Request, res: Response): Promise<void> {
   res.status(200).json(await service.datosDeSesion(contextoDe(req)));
+}
+
+export async function postCambiarPassword(req: Request, res: Response): Promise<void> {
+  const entrada = parsear(CambiarPasswordSchema, req.body);
+  await service.cambiarPassword(contextoDe(req), entrada);
+  res.status(204).end();
+}
+
+export async function postCambiarEmail(req: Request, res: Response): Promise<void> {
+  const entrada = parsear(CambiarEmailSchema, req.body);
+  res.status(200).json(await service.cambiarEmail(contextoDe(req), entrada));
 }

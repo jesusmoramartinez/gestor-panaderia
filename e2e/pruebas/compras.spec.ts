@@ -48,11 +48,11 @@ test('pedir 10 bolsas, recibir 4 y después el resto', async ({ page }) => {
   expect(await saldo(page, harinaId, central)).toBe('0');
 
   // --- Llegan 4 de 10.
-  await page.getByRole('link', { name: 'Recibir mercadería' }).click();
+  await page.getByRole('link', { name: 'Registrar entrega' }).click();
   await page.getByLabel('Llegaron').fill('4');
   await page.getByLabel('Número de remito').fill('0001-00004567');
-  await page.getByRole('button', { name: 'Registrar recepción' }).click();
-  await expect(page.getByRole('heading', { name: /Recepción \d+/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Registrar entrega' }).click();
+  await expect(page.getByRole('heading', { name: /Entrega \d+/ })).toBeVisible();
   await expect(page.getByText('$ 740,00 por kg').first()).toBeVisible();
   expect(await saldo(page, harinaId, central)).toBe('100');
 
@@ -62,11 +62,11 @@ test('pedir 10 bolsas, recibir 4 y después el resto', async ({ page }) => {
   await expect(page.getByText('llegaron 4 × Bolsa 25 kg')).toBeVisible();
 
   // --- Llega el resto, con "Llegó todo".
-  await page.getByRole('link', { name: 'Recibir mercadería' }).click();
+  await page.getByRole('link', { name: 'Registrar entrega' }).click();
   await page.getByRole('button', { name: 'Llegó todo' }).click();
   await expect(page.getByLabel('Llegaron')).toHaveValue('6');
-  await page.getByRole('button', { name: 'Registrar recepción' }).click();
-  await expect(page.getByRole('heading', { name: /Recepción \d+/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Registrar entrega' }).click();
+  await expect(page.getByRole('heading', { name: /Entrega \d+/ })).toBeVisible();
 
   await page.goto(urlOrden);
   await expect(page.getByText('Recibida', { exact: true })).toBeVisible();

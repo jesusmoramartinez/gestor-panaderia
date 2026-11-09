@@ -10,6 +10,7 @@ import { env } from './config/env.js';
 import { AppError, describirError } from './lib/errores.js';
 import { logger } from './lib/log.js';
 import { limitarPedidos } from './middlewares/limitePedidos.js';
+import { acopioRouter } from './modules/acopio/routes.js';
 import { auditoriaRouter } from './modules/auditoria/routes.js';
 import { authRouter } from './modules/auth/routes.js';
 import { categoriasRouter } from './modules/categorias/routes.js';
@@ -200,6 +201,7 @@ export function crearApp(): Express {
   app.use('/api', sucursalesRouter);
   app.use('/api', transferenciasRouter);
   app.use('/api', reposicionRouter);
+  app.use('/api', acopioRouter);
 
   // Una ruta de la API que no existe: 404 con la misma forma que el resto de
   // los errores (y nunca el index.html de la web, que confundiría al front).

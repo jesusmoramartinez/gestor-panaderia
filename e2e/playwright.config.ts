@@ -43,10 +43,30 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
+  // Las pruebas de la etapa de stock corren en la tablet del depósito. Las
+  // del MVP de compras (Etapa 2, C-27: "PC y celular") corren en los dos
+  // tamaños en que las usa Marcelo: el celular, con pantalla táctil, y la PC.
   projects: [
     {
       name: 'tablet',
+      testMatch: /(compras|transferencias|reposicion)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 768, height: 1024 } },
+    },
+    {
+      name: 'celular',
+      testMatch: /mvp-.*\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        deviceScaleFactor: 2,
+      },
+    },
+    {
+      name: 'pc',
+      testMatch: /mvp-.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } },
     },
   ],
 
