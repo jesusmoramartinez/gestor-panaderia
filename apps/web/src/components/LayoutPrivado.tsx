@@ -33,6 +33,7 @@ function Menu() {
         { a: '/compras', texto: 'Compras' },
         ...(veProveedores ? [{ a: '/proveedores', texto: 'Proveedores' }] : []),
         { a: '/insumos', texto: 'Insumos' },
+        { a: '/reportes', texto: 'Reportes' },
       ]
     : [
         { a: '/', texto: 'Inicio' },
@@ -49,7 +50,7 @@ function Menu() {
       {/* En la PC y la tablet: pestañas arriba. */}
       <nav
         aria-label="Menú principal"
-        className="hidden border-b border-slate-200 bg-white sm:block dark:border-slate-700 dark:bg-slate-900"
+        className="hidden border-b border-slate-200 bg-white sm:block print:hidden dark:border-slate-700 dark:bg-slate-900"
       >
         <ul className="mx-auto flex max-w-5xl gap-1 px-2">
           {items.map((item) => (
@@ -79,7 +80,7 @@ function Menu() {
           teléfono (safe-area). */}
       <nav
         aria-label="Menú principal"
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] sm:hidden dark:border-slate-700 dark:bg-slate-900"
+        className="fixed inset-x-0 bottom-0 z-20 border-t print:hidden border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] sm:hidden dark:border-slate-700 dark:bg-slate-900"
       >
         <ul
           className="grid"
@@ -125,7 +126,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
   return (
     <ProveedorSucursalActiva sucursales={sesion.sucursales}>
       <div className="min-h-dvh bg-masa dark:bg-horno">
-        <header className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+        <header className="border-b border-slate-200 bg-white print:hidden dark:border-slate-700 dark:bg-slate-900">
           <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
             <div className="mr-auto min-w-0">
               <p className="truncate font-bold text-slate-900 dark:text-slate-50">
@@ -166,7 +167,7 @@ export function LayoutPrivado({ sesion }: { sesion: UsuarioSesion }) {
         </main>
 
         {/* pb-24 en el celular: que la barra de abajo no tape lo último. */}
-        <footer className="mx-auto max-w-5xl px-4 pb-24 text-xs text-slate-600 sm:pb-6 dark:text-slate-400">
+        <footer className="mx-auto max-w-5xl px-4 pb-24 print:hidden text-xs text-slate-600 sm:pb-6 dark:text-slate-400">
           Hora del sistema: {formatearFechaArgentina(new Date())} ({sesion.empresa.zonaHoraria})
         </footer>
       </div>

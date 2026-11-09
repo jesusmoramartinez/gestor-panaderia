@@ -18,6 +18,7 @@ import { OrdenDetalle } from './routes/OrdenDetalle';
 import { Plantillas } from './routes/Plantillas';
 import { RecepcionDetalle } from './routes/RecepcionDetalle';
 import { RecibirOrden } from './routes/RecibirOrden';
+import { Reportes } from './routes/Reportes';
 import { Reposicion } from './routes/Reposicion';
 import { ProveedorDetalle } from './routes/ProveedorDetalle';
 import { ProveedorNuevo } from './routes/ProveedorNuevo';
@@ -45,6 +46,7 @@ export function App() {
             menú en el MVP de compras, pero sigue andando. */}
         <Route path="/hoy" element={<Inicio />} />
         <Route path="/mi-cuenta" element={<MiCuenta />} />
+        <Route path="/reportes" element={<Reportes />} />
         <Route path="/insumos" element={<Insumos />} />
         {/* El orden importa: /insumos/nuevo tiene que ir ANTES de
             /insumos/:id, porque si no "nuevo" se tomaría como un id. */}

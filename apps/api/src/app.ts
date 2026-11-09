@@ -21,6 +21,7 @@ import { movimientosRouter } from './modules/movimientos/routes.js';
 import { pagosRouter } from './modules/pagos/routes.js';
 import { plantillasRouter } from './modules/plantillas/routes.js';
 import { proveedoresRouter } from './modules/proveedores/routes.js';
+import { reportesRouter } from './modules/reportes/routes.js';
 import { reposicionRouter } from './modules/reposicion/routes.js';
 import { sucursalesRouter } from './modules/sucursales/routes.js';
 import { transferenciasRouter } from './modules/transferencias/routes.js';
@@ -218,6 +219,7 @@ export function crearApp(): Express {
   app.use('/api', reposicionRouter);
   app.use('/api', acopioRouter);
   app.use('/api', pagosRouter);
+  app.use('/api', reportesRouter);
 
   // Una ruta de la API que no existe: 404 con la misma forma que el resto de
   // los errores (y nunca el index.html de la web, que confundiría al front).

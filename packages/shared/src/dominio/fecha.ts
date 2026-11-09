@@ -55,3 +55,18 @@ export function formatearDia(dia: string): string {
   const [anio, mes, diaDelMes] = dia.split('-');
   return `${diaDelMes ?? ''}/${mes ?? ''}/${anio ?? ''}`;
 }
+
+/**
+ * El primer y el último instante de un DÍA de Argentina ('AAAA-MM-DD').
+ *
+ * Para filtrar "las compras del 1 al 30 de noviembre": un día de Argentina
+ * empieza a las 03:00 UTC. Argentina no tiene horario de verano desde 2009,
+ * así que el desfase es fijo (-03:00).
+ */
+export function inicioDelDiaEnArgentina(dia: string): Date {
+  return new Date(`${dia}T00:00:00.000-03:00`);
+}
+
+export function finDelDiaEnArgentina(dia: string): Date {
+  return new Date(`${dia}T23:59:59.999-03:00`);
+}
