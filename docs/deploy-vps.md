@@ -163,6 +163,28 @@ unset ALTA_PASSWORD; rm /tmp/usuario.json; exit
 
 La contraseña se le pasa a la persona por un canal privado.
 
+## 7. Datos de ejemplo (opcional)
+
+Para mostrar el sistema con algo adentro: 8 insumos, 5 proveedores "(ejemplo)"
+y 13 compras de los últimos cuatro meses, con pagos, entregas, comprobantes y
+notas (`src/alta/datos-demo.ts`). **Se niega** si la empresa ya tiene insumos o
+compras: no se puede mezclar con datos reales ni cargar dos veces. Las imágenes
+de comprobante (`transferencia.jpg`, `mercado-pago.jpg`, `remito.jpg`) son
+opcionales y tienen que decir "EJEMPLO" bien grande.
+
+```bash
+ssh vps 'mkdir -p /tmp/demo-imagenes && chmod 755 /tmp/demo-imagenes'
+scp transferencia.jpg mercado-pago.jpg remito.jpg vps:/tmp/demo-imagenes/
+ssh vps 'chmod 644 /tmp/demo-imagenes/* && cd /srv/panaderia && \
+  sudo docker compose run -T --rm --no-deps -v /tmp/demo-imagenes:/demo:ro api \
+  node dist/alta/datos-demo-cli.js <empresaId> --confirmo-datos-de-prueba /demo; \
+  rm -rf /tmp/demo-imagenes'
+```
+
+Se cargó en la empresa de Marcelo el 9/11/2026. **Todavía no hay un comando
+para sacarlos**: antes de que cargue lo real hay que escribirlo (borra
+movimientos, así que va con el mismo cuidado que una restauración).
+
 ---
 
 ## Desplegar una versión nueva
