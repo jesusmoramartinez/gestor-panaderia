@@ -1,7 +1,8 @@
 # PLAN.md — Sistema de gestión para panadería
 
-> **Etapa actual:** Control de stock de materia prima (insumos).
-> **Fecha del plan:** 2026-10-05
+> **Etapa actual (desde el 8/11/2026):** **MVP de compras en acopio** — llevar la cuenta de lo que cada proveedor le debe a Marcelo (mercadería pagada por adelantado y entregada por tandas), con pagos, comprobantes, historial y reportes. Ver "Etapa 2" en la sección 4.
+> **Etapa anterior:** control de stock de materia prima (Fases 0 a 11, terminadas y desplegadas).
+> **Fecha del plan:** 2026-10-05 · **cambio de rumbo:** 2026-11-08
 > **Estado:** aprobado para empezar por la Fase 0. Nada de código todavía fuera de lo que diga cada fase.
 
 ---
@@ -1163,9 +1164,97 @@ Dos consecuencias lindas de ese diseño:
 
 ---
 
-### Fase 12 y siguientes — fuera de esta etapa
+## Etapa 2 — MVP de compras en acopio _(decidido el 8/11/2026)_
 
-Recetas, producción, productos terminados, POS/caja, pedidos, clientes, venta mayorista, personal, reportes avanzados, avisos, facturación ARCA y funcionamiento offline. El diseño de la sección 3.12 explica cómo entra cada uno. **No se escribe una línea de código de estos módulos hasta cerrar la Fase 11.**
+### Por qué cambia el rumbo
+
+Marcelo, el dueño, dijo qué necesita **primero**: no un control de stock completo (consumo, mermas, transferencias), sino **llevar la cuenta con los proveedores**. Él paga el total por adelantado ("100 bolsas de harina") y el proveedor le entrega por tandas ("20 esta semana"): necesita saber en todo momento **cuánto le deben, a quién y de qué compra**, con los comprobantes de pago guardados y reportes de todo lo que carga. Producción, recetas y lo demás vienen **después**, cuando esto ande.
+
+En el rubro esto se llama **compra en acopio**: comprar mucho, pagarlo para asegurar el precio y retirarlo de a poco. Tiene sentido en Argentina: los molinos llegaron a frenar entregas en momentos de volatilidad ([Diario de Cuyo](https://www.diariodecuyo.com.ar/economia/Suspendieron-la-entrega-de-harina-a-las-panaderias-y-hay-incertidumbre-20220228-0058.html), [La Voz de San Justo](https://www.lavozdesanjusto.com.ar/por-el-dolar-molinos-no-entregan-harina-a-panaderias-y-se-complica-la-venta-de-pan-70983)), intentaron atar la harina al dólar ([BAE Negocios](https://www.baenegocios.com/economia-finanzas/Molinos-retrocedieron-y-no-dolarizaran-la-venta-de-harina-20190918-0091.html)), y en los retiros parciales el molino deja constancia en cada remito ([Guía Fiscal Harinera](https://www.argentina.gob.ar/normativa/nacional/norma-159702/texto)).
+
+**Lo que ya existe y se reusa** (Fase 8): la orden de compra con varios insumos, las recepciones parciales ("tandas"), los estados (`PEDIDA`/`PARCIAL`/`RECIBIDA`/`CERRADA`/`CANCELADA`) y el **pendiente** (pedido − recibido), que es exactamente "lo que me deben". **No se borra nada:** Stock, Transferencias y Reposición se ocultan del menú, y las recepciones siguen sumando stock por detrás, para que producción arranque con historia.
+
+### Respuestas del cliente (8/11/2026)
+
+| #    | Pregunta                           | Respuesta                                                | Qué implica                                                                                                                                                                                                 |
+| ---- | ---------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C-20 | ¿Cómo paga?                        | **Por adelantado**                                       | El pago es parte de la compra. Se permiten varios pagos (por si acaso), pero lo normal es uno por el total.                                                                                                 |
+| C-21 | ¿Una compra lleva varios insumos?  | **Sí**, un proveedor vende varios y pide varios a la vez | Ya es así (renglones de la orden).                                                                                                                                                                          |
+| C-22 | ¿Si sube el precio entre tandas?   | **No: cada compra mantiene su precio**                   | Lo que le deben en plata = unidades pendientes × el precio de **esa** compra. Exacto, sin estimar. No hacen falta ajustes de precio.                                                                        |
+| C-23 | ¿Quién carga?                      | **Solo Marcelo**                                         | Un usuario (dueño). Los roles quedan, no estorban.                                                                                                                                                          |
+| C-24 | ¿Qué comprobantes?                 | **Imágenes**: foto o captura                             | Sin PDF. En el celular, el botón abre la cámara o la galería.                                                                                                                                               |
+| C-25 | ¿Medios de pago?                   | **Efectivo o digital** (transferencia, Mercado Pago)     | Enum `EFECTIVO`, `TRANSFERENCIA`, `MERCADO_PAGO`.                                                                                                                                                           |
+| C-26 | ¿Reportes?                         | **Todos los que salgan de los datos**                    | Ver la lista de la Fase 12d.                                                                                                                                                                                |
+| C-27 | ¿Dónde lo usa?                     | **PC y celular**                                         | Pantallas pensadas para el celular primero; Playwright prueba en dos medidas (390×844 y 1280×800).                                                                                                          |
+| C-28 | ¿A qué sucursal llega una entrega? | **La elige él en cada entrega**                          | Se mantiene la sucursal en la recepción (por defecto, la Central: Catán).                                                                                                                                   |
+| C-29 | ¿Gráficos?                         | **A mano, en SVG**, "entendibles y fáciles a la vista"   | Sin librería de gráficos (ninguna dependencia nueva). Barras y líneas simples, con los números escritos, no solo dibujados.                                                                                 |
+| C-30 | ¿Foto del remito en las entregas?  | **Sí, opcional**                                         | La misma tabla de comprobantes sirve para pagos y para entregas.                                                                                                                                            |
+| —    | ¿Dónde se guardan las imágenes?    | **Dentro de Postgres** (decisión técnica, opción A)      | Entran solas en el backup cifrado que ya anda; un comprobante nunca queda separado de su pago. El navegador achica la foto antes de subirla (~300 KB): ~200 MB por año. Si algún día pesa, se pasa a disco. |
+
+### Lo nuevo en el modelo de datos
+
+Todo con `empresa_id`, RLS, auditoría y las reglas de siempre (sección 3.0).
+
+| Tabla         | Para qué                                    | Campos principales                                                                                                                                                                                                                                                |
+| ------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pago`        | Un pago de una compra                       | `orden_compra_id`, `fecha`, `monto NUMERIC(18,4)`, `medio` (`EFECTIVO` / `TRANSFERENCIA` / `MERCADO_PAGO`), `nota`, `anulado_at` (no se borra: se anula, como todo lo demás), quién lo cargó.                                                                     |
+| `comprobante` | Una imagen colgada de un pago o una entrega | `pago_id` **o** `recepcion_id` (un `CHECK` exige exactamente uno), `tipo` (`image/jpeg`, `image/png`, `image/webp`: se verifica por los primeros bytes, no por lo que dice el navegador), `datos bytea`, `bytes`, `ancho`, `alto`. Tope de tamaño en el servidor. |
+| `nota_compra` | Una anotación libre en una compra           | `orden_compra_id`, `texto`, `fecha`, quién.                                                                                                                                                                                                                       |
+
+**Derivados, que se calculan y nunca se guardan** (regla 15):
+
+- **Estado de pago** de una compra: `SIN_PAGO` / `PAGO_PARCIAL` / `PAGADA`, de la suma de pagos no anulados contra el total. Pagar de más se rechaza.
+- **Lo que me deben**: por renglón, pendiente × precio de la compra. Por proveedor, la suma.
+- **Plata a favor**: si una compra pagada se **cierra con faltante**, lo que faltó × su precio es plata que el proveedor le debe devolver. Sale de los mismos números.
+- **Historial** de una compra: la unión, ordenada por fecha, de su creación, pagos, entregas, notas y cierre o anulación. No es una tabla nueva: se arma con lo que ya está guardado.
+
+### Fase 12a — Lo que me deben (y el menú del MVP)
+
+- Menú: **Lo que me deben** (inicio) · **Compras** · **Proveedores** · **Insumos** · **Reportes**. Stock, Transferencias y Reposición, ocultos (no borrados).
+- Pantalla **Lo que me deben**: por proveedor, cada insumo pendiente con unidades y valor en plata; total de plata adelantada sin entregar; compras abiertas ordenadas por antigüedad.
+- Todas las pantallas que quedan en el menú, adaptadas al celular.
+- **Cambiar mi contraseña y mi email** (pendiente del primer deploy: Marcelo entra hoy con una contraseña generada y un email temporal).
+
+**Terminado cuando:** Marcelo carga una compra de 100 bolsas, registra dos tandas de 20 y la pantalla dice "te deben 60 bolsas ($…)", en el celular y en la PC (Playwright en las dos medidas, con capturas mirada), y entra con su propia contraseña.
+
+### Fase 12b — Pagos y comprobantes
+
+- Cargar un pago: monto (por defecto, lo que falta pagar), fecha, medio y una o más imágenes. Anular un pago (auditado).
+- Foto opcional del remito al registrar una entrega.
+- El navegador achica la imagen antes de subirla (`<canvas>`, sin librerías); el servidor verifica el tipo real y el tamaño.
+- Ver el comprobante en grande desde la compra.
+
+**Terminado cuando:** una compra pagada con una captura de Mercado Pago muestra "Pagada" y la imagen; un backup automático la incluye y una restauración la devuelve idéntica; un archivo que no es imagen (aunque se llame `.jpg`) se rechaza (test).
+
+### Fase 12c — Historial de cada compra
+
+- Línea de tiempo: creada, pagos, entregas, notas, cierre o anulación, con fecha y quién.
+- Agregar notas libres ("dicen que la próxima viene el 19").
+
+**Terminado cuando:** el historial de una compra con 2 pagos, 3 entregas y una nota muestra los 6 eventos en orden (test + Playwright).
+
+### Fase 12d — Reportes
+
+Todos con filtro de fechas, **exportar a CSV** (se abre en Excel, sin dependencias) e **impresión** limpia. Gráficos en SVG hechos a mano: pocos, grandes, con el valor escrito.
+
+| #   | Reporte                               | Pregunta que contesta                                          |
+| --- | ------------------------------------- | -------------------------------------------------------------- |
+| 1   | Mercadería pendiente                  | ¿Qué me deben y cuánto vale? (es la pantalla de 12a)           |
+| 2   | Plata adelantada sin entregar         | ¿Cuánta plata mía tiene cada proveedor?                        |
+| 3   | Compras abiertas por antigüedad       | ¿Hace cuánto pagué y todavía no terminó de llegar?             |
+| 4   | Gasto por mes                         | ¿Cuánto gasté este mes contra el anterior? (barras)            |
+| 5   | Gasto por proveedor y por insumo      | ¿En qué y con quién se me va la plata?                         |
+| 6   | Pagos por medio                       | ¿Cuánto pagué en efectivo, transferencia y Mercado Pago?       |
+| 7   | Evolución del precio de un insumo     | ¿Cuánto pagué la bolsa de harina en cada compra? (línea)       |
+| 8   | Comparación de proveedores por insumo | ¿Quién me lo vendió más barato?                                |
+| 9   | Cumplimiento de proveedores           | ¿Cuántos días tarda cada uno en completar? ¿Cuántos faltantes? |
+| 10  | Entregas por semana                   | ¿Qué llegó, de quién y a qué sucursal?                         |
+
+**Terminado cuando:** cada reporte tiene un test con números conocidos (los totales cuadran con la suma de pagos y entregas), su CSV abre en una planilla, y se miró en el celular y en la PC.
+
+### Fase 13 y siguientes — después del MVP
+
+Recetas y producción (el consumo automático, la expectativa número uno del cliente en C-14), volver a mostrar Stock, Transferencias y Reposición, productos terminados, POS/caja, pedidos, clientes, venta mayorista, personal, avisos, facturación ARCA y funcionamiento offline. El diseño de la sección 3.12 explica cómo entra cada uno. **No se escribe una línea de código de estos módulos hasta cerrar la Etapa 2.**
 
 ---
 
