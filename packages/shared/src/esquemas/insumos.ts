@@ -150,9 +150,12 @@ export type ParametrosSucursalInput = z.infer<typeof ParametrosSucursalSchema>;
  * rechazaba con 400 y el desplegable quedaba vacío sin decir nada. Con la
  * constante compartida, el front y la API no pueden volver a desincronizarse.
  *
- * 100 alcanza para un desplegable: el cliente tiene menos de 100 insumos (C-1).
+ * Era 100 ("el cliente tiene menos de 100 insumos", C-1). Pasó a 300 cuando
+ * se precargó el catálogo de una panadería de Buenos Aires (más de 100
+ * insumos, 9/11/2026): con 100, los últimos dejaban de aparecer en los
+ * desplegables de compras sin aviso, el mismo bug de arriba.
  */
-export const LIMITE_MAXIMO_LISTADO = 100;
+export const LIMITE_MAXIMO_LISTADO = 300;
 
 /** Filtros del listado. Todo llega como texto en el query string. */
 export const FiltroInsumosSchema = z.object({

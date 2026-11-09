@@ -19,6 +19,8 @@ export type DefinicionPresentacion = {
 export type DefinicionInsumo = {
   nombre: string;
   codigo?: string;
+  /** Un emoji, si hay uno más preciso que el de la categoría. */
+  icono?: string;
   /** Nombre de la categoría; se crea si no existe. */
   categoria: string;
   /** Código de la unidad base: kg, g, l, ml, u. */
@@ -78,6 +80,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Mejorador de masa',
+    icono: '🧪',
     categoria: 'Levaduras y mejoradores',
     unidad: 'kg',
     presentaciones: [{ nombre: 'Bolsa 5 kg', cantidadBase: '5', esDefault: true }],
@@ -137,6 +140,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Grasa vacuna',
+    icono: '🐄',
     categoria: 'Grasas y aceites',
     unidad: 'kg',
     presentaciones: [{ nombre: 'Caja 10 kg', cantidadBase: '10', esDefault: true }],
@@ -144,6 +148,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Aceite de girasol',
+    icono: '🌻',
     categoria: 'Grasas y aceites',
     unidad: 'l',
     presentaciones: [
@@ -165,6 +170,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Crema de leche',
+    icono: '🍦',
     categoria: 'Lácteos',
     unidad: 'l',
     presentaciones: [{ nombre: 'Sachet 1 l', cantidadBase: '1', esDefault: true }],
@@ -191,14 +197,14 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Chocolate cobertura semiamargo',
-    categoria: 'Rellenos y coberturas',
+    categoria: 'Chocolates y cacao',
     unidad: 'kg',
     presentaciones: [{ nombre: 'Caja 5 kg', cantidadBase: '5', esDefault: true }],
     minimos: { CEN: '15', LAF: '5' },
   },
   {
     nombre: 'Cacao amargo',
-    categoria: 'Rellenos y coberturas',
+    categoria: 'Chocolates y cacao',
     unidad: 'kg',
     presentaciones: [{ nombre: 'Bolsa 1 kg', cantidadBase: '1', esDefault: true }],
     minimos: { CEN: '5', LAF: '2' },
@@ -212,7 +218,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Esencia de vainilla',
-    categoria: 'Rellenos y coberturas',
+    categoria: 'Esencias y aditivos',
     unidad: 'l',
     presentaciones: [
       { nombre: 'Botella 1 l', cantidadBase: '1', esDefault: true },
@@ -223,6 +229,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   // --- Semillas
   {
     nombre: 'Semillas de sésamo',
+    icono: '🌱',
     categoria: 'Semillas y frutos secos',
     unidad: 'kg',
     presentaciones: [{ nombre: 'Bolsa 5 kg', cantidadBase: '5', esDefault: true }],
@@ -230,6 +237,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Semillas de girasol',
+    icono: '🌻',
     categoria: 'Semillas y frutos secos',
     unidad: 'kg',
     presentaciones: [{ nombre: 'Bolsa 5 kg', cantidadBase: '5', esDefault: true }],
@@ -245,6 +253,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   // --- Envases
   {
     nombre: 'Bolsa de papel kraft',
+    icono: '🛍️',
     categoria: 'Envases y descartables',
     unidad: 'u',
     presentaciones: [{ nombre: 'Paquete 500 u', cantidadBase: '500', esDefault: true }],
@@ -259,6 +268,7 @@ export const INSUMOS_LAFERRERE: readonly DefinicionInsumo[] = [
   },
   {
     nombre: 'Film de cocina',
+    icono: '🧻',
     categoria: 'Envases y descartables',
     unidad: 'u',
     presentaciones: [{ nombre: 'Rollo', cantidadBase: '1', esDefault: true }],

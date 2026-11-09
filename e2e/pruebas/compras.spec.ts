@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  api,
   desplegable,
   elegir,
   entrar,
@@ -86,11 +87,16 @@ test('las pantallas de carga muestran los insumos (el bug de limite=200)', async
   const errores = vigilarErrores(page);
   await entrar(page, 'dueno@panaderia.test');
 
+  // Cuántos insumos activos tiene la empresa: el desplegable tiene que
+  // mostrarlos TODOS (son más de 100 desde el catálogo precargado).
+  const { total } = await api<{ total: number }>(page, 'GET', '/insumos?limite=1');
+  expect(total).toBeGreaterThan(100);
+
   for (const ruta of ['/stock/consumo', '/stock/merma', '/recepciones/nueva']) {
     await page.goto(ruta);
     const opciones = desplegable(page, 'Insumo').first().locator('option');
-    // 28 insumos de la semilla + "Elegí un insumo".
-    await expect(opciones, ruta).toHaveCount(29);
+    // Todos los insumos + "Elegí un insumo".
+    await expect(opciones, ruta).toHaveCount(total + 1);
   }
   expect(errores).toEqual([]);
 });

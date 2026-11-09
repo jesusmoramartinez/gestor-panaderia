@@ -244,3 +244,34 @@ export function SelectorIcono({
     </div>
   );
 }
+
+/**
+ * LOS TIPOS DE ENVASE: en qué viene un insumo cuando se compra. Son la
+ * primera palabra del nombre de una presentación ("Bolsa 25 kg", "Horma
+ * 4 kg"). Elegir uno arma el nombre solo; el nombre se puede seguir editando.
+ */
+export const ENVASES: readonly (readonly [string, string])[] = [
+  ['Bolsa', '🛍️'],
+  ['Caja', '📦'],
+  ['Balde', '🪣'],
+  ['Pan', '🧈'],
+  ['Placa', '🧈'],
+  ['Barra', '🍫'],
+  ['Horma', '🧀'],
+  ['Pieza', '🥓'],
+  ['Bidón', '🛢️'],
+  ['Botella', '🍾'],
+  ['Sachet', '🥛'],
+  ['Brick', '🧃'],
+  ['Maple', '🥚'],
+  ['Cajón', '🧺'],
+  ['Paquete', '📦'],
+  ['Pote', '🫙'],
+  ['Frasco', '🫙'],
+  ['Lata', '🥫'],
+  ['Sobre', '✉️'],
+  ['Rollo', '🧻'],
+  ['Fardo', '🌾'],
+  ['Atado', '🥬'],
+  ['Unidad', '1️⃣'],
+];

@@ -8,6 +8,7 @@
  * importarlo: así quien llama decide contra qué base trabaja.
  */
 import type { PrismaClient } from '../src/generated/prisma/client.js';
+import { CATALOGO_AMPLIO } from './semilla-catalogo.js';
 import { type DefinicionInsumo, INSUMOS_LAFERRERE, INSUMOS_VECINA } from './semilla-insumos.js';
 import {
   type DefinicionProveedor,
@@ -90,7 +91,9 @@ export const EMPRESAS: readonly DefinicionEmpresa[] = [
         sucursales: ['LAF'],
       },
     ],
-    insumos: INSUMOS_LAFERRERE,
+    // Lo básico (con mínimos y proveedores) y el catálogo amplio de una
+    // panadería de Buenos Aires (sin mínimos): ver semilla-catalogo.ts.
+    insumos: [...INSUMOS_LAFERRERE, ...CATALOGO_AMPLIO],
     proveedores: PROVEEDORES_LAFERRERE,
   },
 
@@ -261,10 +264,16 @@ export async function sembrar(prisma: PrismaClient): Promise<void> {
             empresaId: empresa.id,
             nombre: definicion.nombre,
             codigo: definicion.codigo ?? null,
+            icono: definicion.icono ?? null,
             categoriaId,
             unidadBaseId,
           },
-          update: { codigo: definicion.codigo ?? null, categoriaId, activo: true },
+          update: {
+            codigo: definicion.codigo ?? null,
+            icono: definicion.icono ?? null,
+            categoriaId,
+            activo: true,
+          },
           select: { id: true },
         });
 

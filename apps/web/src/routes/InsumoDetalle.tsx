@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router';
 
 import { DialogoConfirmacion } from '../components/Dialogo';
-import { CuadroIcono, iconoDe, SelectorIcono } from '../components/iconosInsumo';
+import { CuadroIcono, ENVASES, iconoDe, SelectorIcono } from '../components/iconosInsumo';
 import {
   alEnviar,
   Campo,
@@ -316,12 +316,29 @@ function Presentaciones({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: 
     defaultValues: { nombre: '', cantidadBase: '', esDefault: false },
   });
 
+  // El envase elegido arma el nombre: "Bolsa" + "25" + "kg" = "Bolsa 25 kg".
+  // Si la persona escribe el nombre a mano, se respeta y no se pisa más.
+  const [envase, setEnvase] = useState<string | null>(null);
+  const [nombreAMano, setNombreAMano] = useState(false);
+
+  function armarNombre(envaseElegido: string | null, cantidad: string): void {
+    if (nombreAMano || envaseElegido === null) return;
+    const partes = [
+      envaseElegido,
+      cantidad.trim(),
+      cantidad.trim() === '' ? '' : insumo.unidadBase.codigo,
+    ];
+    form.setValue('nombre', partes.filter((p) => p !== '').join(' '));
+  }
+
   const agregar = useMutation({
     mutationFn: (valores: Parameters<typeof crearPresentacion>[1]) =>
       crearPresentacion(insumo.id, valores),
     onSuccess: async (actualizado) => {
       await guardar(actualizado);
       form.reset();
+      setEnvase(null);
+      setNombreAMano(false);
     },
     onError: (error) => {
       setErrorGeneral(aplicarErroresDelServidor(error, form.setError));
@@ -378,13 +395,45 @@ function Presentaciones({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: 
           noValidate
           className="mt-5 space-y-3 border-t border-slate-100 pt-5 dark:border-slate-800"
         >
+          <div role="group" aria-label="Tipo de envase">
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              En qué viene
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {ENVASES.map(([nombre, icono]) => (
+                <button
+                  key={nombre}
+                  type="button"
+                  aria-pressed={envase === nombre}
+                  onClick={() => {
+                    setEnvase(nombre);
+                    setNombreAMano(false);
+                    armarNombre(nombre, form.getValues('cantidadBase'));
+                  }}
+                  className={`flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm transition ${
+                    envase === nombre
+                      ? 'border-corteza bg-amber-50 font-semibold text-corteza dark:border-corteza-claro dark:bg-slate-800 dark:text-corteza-claro'
+                      : 'border-slate-300 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span aria-hidden="true">{icono}</span>
+                  {nombre}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-[2fr_1fr_auto]">
             <Campo etiqueta="Nombre" error={form.formState.errors.nombre?.message}>
               <input
                 type="text"
                 placeholder="Bolsa 25 kg"
                 className={CLASE_CONTROL}
-                {...form.register('nombre')}
+                {...form.register('nombre', {
+                  onChange: () => {
+                    setNombreAMano(true);
+                  },
+                })}
               />
             </Campo>
 
@@ -400,7 +449,11 @@ function Presentaciones({ insumo, puedeEditar }: { insumo: Insumo; puedeEditar: 
                 inputMode="decimal"
                 placeholder="25"
                 className={CLASE_CONTROL}
-                {...form.register('cantidadBase')}
+                {...form.register('cantidadBase', {
+                  onChange: (evento: { target: { value: string } }) => {
+                    armarNombre(envase, evento.target.value);
+                  },
+                })}
               />
             </Campo>
 
