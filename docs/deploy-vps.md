@@ -181,7 +181,16 @@ ssh vps 'chmod 644 /tmp/demo-imagenes/* && cd /srv/panaderia && \
   rm -rf /tmp/demo-imagenes'
 ```
 
-Se cargó en la empresa de Marcelo el 9/11/2026. **Todavía no hay un comando
+**Datos extra**, encima de los base (`src/alta/datos-demo-extra.ts`): más
+insumos con ícono, más compras en el acopio, consumos, mermas, "se terminó",
+un ajuste, plantillas y mínimos, para que el stock muestre ok, bajo y sin
+stock. Mismo comando con `dist/alta/datos-demo-extra-cli.js`; las imágenes
+están en `apps/api/prisma/demo-imagenes/`. Se niega sin la base o si ya se
+cargó. En local, `pnpm db:demo` arma la misma empresa (entrar con
+`marcelo@panaderia.test`).
+
+Los base se cargaron en la empresa de Marcelo el 9/11/2026, y los extra el
+mismo día a las 19:30 UTC. **Todavía no hay un comando
 para sacarlos**: antes de que cargue lo real hay que escribirlo (borra
 movimientos, así que va con el mismo cuidado que una restauración).
 
