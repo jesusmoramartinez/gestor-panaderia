@@ -1,12 +1,20 @@
-import { formatearCantidad, formatearDinero, formatearFechaArgentina } from '@panaderia/shared';
+import {
+  formatearCantidad,
+  formatearDinero,
+  formatearFechaArgentina,
+  type RecepcionDetalle as DatosRecepcion,
+} from '@panaderia/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { EtiquetaAnulada, textoCantidad } from '../components/compras';
+import { ElegirImagenes, MiniaturasComprobantes } from '../components/comprobantes';
 import { DialogoConfirmacion } from '../components/Dialogo';
 import {
   CLASE_BOTON_PELIGRO,
+  CLASE_BOTON_PRIMARIO,
+  CLASE_BOTON_SECUNDARIO,
   CLASE_CONTROL,
   MensajeError,
   Tarjeta,
@@ -14,6 +22,8 @@ import {
 import { usePuede } from '../hooks/useSesion';
 import { ErrorDeApi } from '../lib/api';
 import { anularRecepcion, obtenerRecepcion } from '../lib/compras';
+import type { ImagenPreparada } from '../lib/imagenes';
+import { agregarComprobantesARecepcion } from '../lib/pagos';
 
 /**
  * Una recepción: qué llegó, a qué precio, y cuánto quedó costando cada
@@ -99,7 +109,7 @@ export function RecepcionDetalle() {
               </Link>
             </>
           )}
-          {datos.orden === null && ' · sin orden'}
+          {datos.orden === null && ' · sin compra cargada'}
           {datos.numeroRemito !== null && ` · remito ${datos.numeroRemito}`}
           {datos.numeroFactura !== null && ` · factura ${datos.numeroFactura}`}
         </p>
@@ -148,6 +158,8 @@ export function RecepcionDetalle() {
           <span className="text-lg font-bold tabular-nums">{formatearDinero(datos.total)}</span>
         </p>
       </Tarjeta>
+
+      <FotosDelRemito recepcion={datos} />
 
       <Tarjeta titulo="Costo promedio actual">
         <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
@@ -227,5 +239,71 @@ export function RecepcionDetalle() {
         )}
       </DialogoConfirmacion>
     </div>
+  );
+}
+
+/** La foto del remito (C-30): verla, y agregarla si no se cargó al recibir. */
+function FotosDelRemito({ recepcion }: { recepcion: DatosRecepcion }) {
+  const queryClient = useQueryClient();
+  const puedeAgregar = usePuede('compra:recibir') && recepcion.estado === 'CONFIRMADA';
+  const [fotos, setFotos] = useState<ImagenPreparada[] | null>(null);
+
+  const agregar = useMutation({
+    mutationFn: (imagenes: ImagenPreparada[]) =>
+      agregarComprobantesARecepcion(recepcion.id, {
+        comprobantes: imagenes.map((imagen) => ({ datos: imagen.datos })),
+      }),
+    onSuccess: (actualizada) => {
+      queryClient.setQueryData(['recepcion', recepcion.id], actualizada);
+      setFotos(null);
+    },
+  });
+
+  if (recepcion.comprobantes.length === 0 && !puedeAgregar) return null;
+  return (
+    <Tarjeta titulo="Foto del remito">
+      {recepcion.comprobantes.length === 0 && fotos === null && (
+        <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">No se cargó ninguna foto.</p>
+      )}
+      <MiniaturasComprobantes comprobantes={recepcion.comprobantes} titulo="Remito" />
+      {puedeAgregar && fotos === null && (
+        <button
+          type="button"
+          onClick={() => {
+            setFotos([]);
+          }}
+          className={`${CLASE_BOTON_SECUNDARIO} mt-3`}
+        >
+          Agregar foto
+        </button>
+      )}
+      {fotos !== null && (
+        <div className="mt-3 space-y-2">
+          <ElegirImagenes etiqueta="Fotos del remito" imagenes={fotos} onCambiar={setFotos} />
+          {agregar.isError && <MensajeError>{agregar.error.message}</MensajeError>}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={fotos.length === 0 || agregar.isPending}
+              onClick={() => {
+                agregar.mutate(fotos);
+              }}
+              className={CLASE_BOTON_PRIMARIO}
+            >
+              {agregar.isPending ? 'Guardando...' : 'Guardar fotos'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFotos(null);
+              }}
+              className={CLASE_BOTON_SECUNDARIO}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </Tarjeta>
   );
 }

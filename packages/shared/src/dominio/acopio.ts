@@ -18,7 +18,7 @@
  * MANTIENE SU PRECIO. Lo que me deben en plata es lo pendiente × el precio de
  * ESA compra, no un precio de hoy ni un promedio.
  */
-import { pendienteDe } from './compras.js';
+import { type EstadoOrden, pendienteDe } from './compras.js';
 import { aDecimal, Decimal, type Numerico, redondearCantidad, redondearDinero } from './decimal.js';
 
 /** Un renglón de una compra, como lo guarda la base. */
@@ -95,6 +95,17 @@ export const MEDIOS_PAGO = ['EFECTIVO', 'TRANSFERENCIA', 'MERCADO_PAGO'] as cons
 export type MedioPago = (typeof MEDIOS_PAGO)[number];
 
 export const ESTADOS_PAGO = ['SIN_PAGO', 'PAGO_PARCIAL', 'PAGADA'] as const;
+
+/**
+ * En qué estados de la compra se puede registrar un pago: desde que se pidió.
+ * Un BORRADOR todavía no es una compra, y una CANCELADA ya no lo es. Una
+ * CERRADA con faltante sí: puede quedar un saldo por pagar de lo que llegó.
+ */
+export function sePuedePagar(estado: EstadoOrden): boolean {
+  return (
+    estado === 'PEDIDA' || estado === 'PARCIAL' || estado === 'RECIBIDA' || estado === 'CERRADA'
+  );
+}
 export type EstadoPago = (typeof ESTADOS_PAGO)[number];
 
 export type CuentaCompra = {

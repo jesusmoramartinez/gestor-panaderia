@@ -17,7 +17,10 @@ export const CantidadMovimientoSchema = z
   .trim()
   .min(1, 'Hay que indicar una cantidad')
   .transform(normalizarNumero)
-  .refine((valor) => esDecimalValido(valor), 'No es un número válido')
+  // abort: si no es un número, no se sigue validando. En Zod 4 las
+  // validaciones siguientes corren igual, y aDecimal('mil') LANZA: la API
+  // devolvía un 500 por un dato mal escrito (lo encontró un test de pagos).
+  .refine((valor) => esDecimalValido(valor), { error: 'No es un número válido', abort: true })
   .refine((valor) => aDecimal(valor).greaterThan(0), 'Tiene que ser mayor que cero');
 
 export const UuidOpcional = z
@@ -132,7 +135,10 @@ const CantidadContadaSchema = z
   .trim()
   .min(1, 'Hay que indicar cuánto contaste')
   .transform(normalizarNumero)
-  .refine((valor) => esDecimalValido(valor), 'No es un número válido')
+  // abort: si no es un número, no se sigue validando. En Zod 4 las
+  // validaciones siguientes corren igual, y aDecimal('mil') LANZA: la API
+  // devolvía un 500 por un dato mal escrito (lo encontró un test de pagos).
+  .refine((valor) => esDecimalValido(valor), { error: 'No es un número válido', abort: true })
   .refine((valor) => aDecimal(valor).greaterThanOrEqualTo(0), 'No puede ser negativo');
 
 /**

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router';
 
+import { ElegirImagenes } from '../components/comprobantes';
 import { textoCantidad } from '../components/compras';
 import {
   Campo,
@@ -26,6 +27,7 @@ import {
 import { usePuede, useSesion } from '../hooks/useSesion';
 import { obtenerOrden, recibirOrden } from '../lib/compras';
 import { aplicarErroresDelServidor } from '../lib/erroresFormulario';
+import type { ImagenPreparada } from '../lib/imagenes';
 
 /** Lo pendiente de cada línea, con el precio de la orden: "recibir todo". */
 function todoLoPendiente(orden: OrdenDetalle) {
@@ -88,9 +90,15 @@ export function RecibirOrden() {
     cargado.current = true;
   }, [orden.data, form]);
 
+  // La foto del remito (C-30): fuera del formulario, porque es un archivo.
+  const [fotos, setFotos] = useState<ImagenPreparada[]>([]);
+
   const recibir = useMutation({
     mutationFn: (valores: Parameters<typeof aRecepcionDeOrden>[0]) =>
-      recibirOrden(id, aRecepcionDeOrden(valores)),
+      recibirOrden(id, {
+        ...aRecepcionDeOrden(valores),
+        comprobantes: fotos.map((foto) => ({ datos: foto.datos })),
+      }),
     onSuccess: async (recepcion) => {
       for (const clave of [
         ['orden', id],
@@ -314,6 +322,13 @@ export function RecibirOrden() {
               <Campo etiqueta="Notas (opcional)" error={form.formState.errors.notas?.message}>
                 <input type="text" className={CLASE_CONTROL} {...form.register('notas')} />
               </Campo>
+            </div>
+            <div className="sm:col-span-3">
+              <ElegirImagenes
+                etiqueta="Foto del remito (opcional)"
+                imagenes={fotos}
+                onCambiar={setFotos}
+              />
             </div>
           </div>
         </Tarjeta>

@@ -134,10 +134,34 @@ export function formatearDinero(valor: Numerico, decimales = 2): string {
 export function normalizarNumero(texto: string): string {
   const limpio = texto.trim();
   if (!limpio.includes(',')) return limpio;
+  // Dos comas no es un número: se devuelve tal cual, para que falle la
+  // validación. Si no, "1,2,3" → "1.2,3", y una SEGUNDA normalización (la que
+  // hace esDecimalValido) lo convertía en "12.3", un número válido que nadie
+  // escribió. Así la función es idempotente: aplicarla dos veces da lo mismo.
+  if (limpio.indexOf(',') !== limpio.lastIndexOf(',')) return limpio;
   return limpio.replaceAll('.', '').replace(',', '.');
 }
 
 /** ¿Este texto es un número decimal válido? Nunca lanza. */
+/**
+ * Como normalizarNumero, pero para PLATA (precios y pagos).
+ *
+ * En Argentina un importe se escribe "18.500" o "2.000.000": el punto separa
+ * los miles. normalizarNumero, que sirve para cantidades ("1.5 kg"), leería
+ * "18.500" como dieciocho con cincuenta. En plata eso no tiene sentido: nadie
+ * escribe "18.500" queriendo decir $18,50.
+ *
+ * La regla: si NO hay coma y los puntos aparecen cada tres dígitos
+ * ("18.500", "2.000.000"), son de miles. Todo lo demás, igual que
+ * normalizarNumero ("18,50" → 18.50, "18.5" → 18.5). También acepta el "$"
+ * adelante, que es como se copia un monto de un mensaje.
+ */
+export function normalizarImporte(texto: string): string {
+  const limpio = texto.trim().replace(/^\$\s*/, '');
+  if (/^\d{1,3}(\.\d{3})+$/.test(limpio)) return limpio.replaceAll('.', '');
+  return normalizarNumero(limpio);
+}
+
 export function esDecimalValido(texto: string): boolean {
   try {
     return new Decimal(normalizarNumero(texto)).isFinite();

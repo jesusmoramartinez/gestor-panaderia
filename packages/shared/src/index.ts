@@ -19,6 +19,7 @@ export * from './esquemas/auth.js';
 export * from './esquemas/compras.js';
 export * from './esquemas/insumos.js';
 export * from './esquemas/movimientos.js';
+export * from './esquemas/pagos.js';
 export * from './esquemas/proveedores.js';
 export * from './esquemas/reposicion.js';
 export * from './esquemas/salud.js';

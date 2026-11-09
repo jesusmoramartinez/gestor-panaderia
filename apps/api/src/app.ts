@@ -18,6 +18,7 @@ import { comprasRouter } from './modules/compras/routes.js';
 import { healthRouter } from './modules/health/routes.js';
 import { insumosRouter } from './modules/insumos/routes.js';
 import { movimientosRouter } from './modules/movimientos/routes.js';
+import { pagosRouter } from './modules/pagos/routes.js';
 import { plantillasRouter } from './modules/plantillas/routes.js';
 import { proveedoresRouter } from './modules/proveedores/routes.js';
 import { reposicionRouter } from './modules/reposicion/routes.js';
@@ -180,6 +181,20 @@ export function crearApp(): Express {
   app.use('/api', limitarPedidos(env.LIMITE_PEDIDOS_POR_MINUTO));
 
   // Parsea los cuerpos JSON. El límite evita que alguien mande 500 MB.
+  //
+  // Excepción (Etapa 2): los pedidos que traen fotos de comprobantes, en
+  // base64. Hasta 4 imágenes de 2 MB, más un tercio por el base64. Se montan
+  // ANTES del parser general: un cuerpo ya leído no se vuelve a leer, así que
+  // el de 1 MB no los corta.
+  app.use(
+    [
+      '/api/ordenes-compra/:id/pagos',
+      '/api/ordenes-compra/:id/recepciones',
+      '/api/pagos/:id/comprobantes',
+      '/api/recepciones/:id/comprobantes',
+    ],
+    express.json({ limit: '12mb' }),
+  );
   app.use(express.json({ limit: '1mb' }));
 
   // Deja las cookies del pedido en req.cookies. Express sabe ESCRIBIR cookies
@@ -202,6 +217,7 @@ export function crearApp(): Express {
   app.use('/api', transferenciasRouter);
   app.use('/api', reposicionRouter);
   app.use('/api', acopioRouter);
+  app.use('/api', pagosRouter);
 
   // Una ruta de la API que no existe: 404 con la misma forma que el resto de
   // los errores (y nunca el index.html de la web, que confundiría al front).

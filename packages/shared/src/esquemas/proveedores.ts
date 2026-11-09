@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { aDecimal, esDecimalValido, normalizarNumero } from '../dominio/decimal.js';
+import { aDecimal, esDecimalValido, normalizarImporte } from '../dominio/decimal.js';
 
 /**
  * Un importe escrito por una persona.
@@ -13,8 +13,12 @@ export const PrecioSchema = z
   .string()
   .trim()
   .min(1, 'Hay que indicar un precio')
-  .transform(normalizarNumero)
-  .refine((valor) => esDecimalValido(valor), 'No es un número válido')
+  // Plata: "18.500" son dieciocho mil quinientos (ver normalizarImporte).
+  .transform(normalizarImporte)
+  // abort: si no es un número, no se sigue validando. En Zod 4 las
+  // validaciones siguientes corren igual, y aDecimal('mil') LANZA: la API
+  // devolvía un 500 por un dato mal escrito (lo encontró un test de pagos).
+  .refine((valor) => esDecimalValido(valor), { error: 'No es un número válido', abort: true })
   .refine((valor) => aDecimal(valor).greaterThanOrEqualTo(0), 'El precio no puede ser negativo');
 
 /**

@@ -12,6 +12,7 @@ import { Link, useParams } from 'react-router';
 
 import { EtiquetaAtrasada, EtiquetaEstadoOrden, textoCantidad } from '../components/compras';
 import { DialogoConfirmacion } from '../components/Dialogo';
+import { EtiquetaEstadoPago, PagosDeCompra } from '../components/PagosDeCompra';
 import {
   CLASE_BOTON_PELIGRO,
   CLASE_BOTON_PRIMARIO,
@@ -93,6 +94,7 @@ export function OrdenDetalle() {
             Compra {datos.numero} · {datos.proveedor.nombre}
           </h1>
           <EtiquetaEstadoOrden estado={datos.estado} />
+          <EtiquetaEstadoPago estado={datos.cuenta.estadoPago} />
           {datos.atrasada && <EtiquetaAtrasada fecha={datos.fechaEntregaEstimada} />}
         </div>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
@@ -219,6 +221,8 @@ export function OrdenDetalle() {
           </p>
         )}
       </Tarjeta>
+
+      <PagosDeCompra orden={datos} />
 
       <Tarjeta titulo="Entregas de esta compra">
         {datos.recepciones.length === 0 ? (

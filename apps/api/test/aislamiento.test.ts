@@ -748,6 +748,45 @@ describe('aislamiento entre empresas', () => {
     ).toBe(false);
   });
 
+  it('pagos y comprobantes ajenos: 404, no se ven ni se tocan', async () => {
+    await entrarComo('dueno@panaderia.test');
+    const creada = await api.post('/api/ordenes-compra', {
+      sucursalId: laferrere.sucursalCentralId,
+      proveedorId: laferrere.molinoId,
+      lineas: [{ insumoId: laferrere.harina000Id, cantidad: '3', precioUnitario: '1000' }],
+    });
+    const ordenId = (creada.cuerpo as { id: string }).id;
+    const png =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const pagada = await api.post(`/api/ordenes-compra/${ordenId}/pagos`, {
+      monto: '1000',
+      medio: 'EFECTIVO',
+      comprobantes: [{ datos: png }],
+    });
+    expect(pagada.status, JSON.stringify(pagada.cuerpo)).toBe(201);
+    const pago = (pagada.cuerpo as OrdenDetalle).pagos[0];
+
+    api.olvidarCookies();
+    await entrarComo('dueno@vecina.test');
+    expect((await api.get(`/api/comprobantes/${pago?.comprobantes[0]?.id ?? ''}`)).status).toBe(
+      404,
+    );
+    expect(
+      (await api.post(`/api/pagos/${pago?.id ?? ''}/anular`, { motivo: 'no es mío' })).status,
+    ).toBe(404);
+    expect(
+      (
+        await api.post(`/api/pagos/${pago?.id ?? ''}/comprobantes`, {
+          comprobantes: [{ datos: png }],
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (await api.post(`/api/ordenes-compra/${ordenId}/pagos`, { monto: '1', medio: 'EFECTIVO' }))
+        .status,
+    ).toBe(404);
+  });
+
   it('mandar un empresaId en el cuerpo del pedido no cambia nada', async () => {
     await entrarComo('dueno@vecina.test');
 

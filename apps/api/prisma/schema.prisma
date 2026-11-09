@@ -9,8 +9,8 @@
 generator client {
   // "prisma-client" es el generador nuevo de Prisma 7: genera código ESM
   // y pide que le digas dónde ponerlo (antes escribía en node_modules).
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
   // Los imports del código generado terminan en .js, que es lo que Node
   // encuentra en dist/. Va fijo porque, si no, Prisma lo deduce del
   // tsconfig.json, y al armar la imagen de Docker el `prisma generate` corre
@@ -69,6 +69,9 @@ model Empresa {
   recepciones    RecepcionCompra[]
   plantillas     PlantillaPedido[]
   transferencias Transferencia[]
+  pagos          Pago[]
+  comprobantes   Comprobante[]
+  notasCompra    NotaCompra[]
 
   @@map("empresa")
 }
@@ -146,6 +149,10 @@ model Usuario {
   transferenciasEnviadas  Transferencia[]   @relation("TransferenciaEnviadaPor")
   transferenciasRecibidas Transferencia[]   @relation("TransferenciaRecibidaPor")
   transferenciasAnuladas  Transferencia[]   @relation("TransferenciaAnuladaPor")
+  pagos                   Pago[]            @relation("PagoCargadoPor")
+  pagosAnulados           Pago[]            @relation("PagoAnuladoPor")
+  comprobantes            Comprobante[]
+  notasCompra             NotaCompra[]
 
   @@index([empresaId])
   @@map("usuario")
@@ -846,6 +853,8 @@ model OrdenCompra {
   usuario     Usuario            @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
   lineas      LineaOrdenCompra[]
   recepciones RecepcionCompra[]
+  pagos       Pago[]
+  anotaciones NotaCompra[]
 
   @@unique([empresaId, numero])
   @@index([empresaId, estado])
@@ -932,16 +941,17 @@ model RecepcionCompra {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  empresa     Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  sucursal    Sucursal               @relation(fields: [sucursalId], references: [id], onDelete: Restrict)
-  proveedor   Proveedor              @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
-  orden       OrdenCompra?           @relation(fields: [ordenCompraId], references: [id], onDelete: Restrict)
+  empresa      Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  sucursal     Sucursal               @relation(fields: [sucursalId], references: [id], onDelete: Restrict)
+  proveedor    Proveedor              @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  orden        OrdenCompra?           @relation(fields: [ordenCompraId], references: [id], onDelete: Restrict)
   // Dos relaciones con la MISMA tabla (usuario): quién la cargó y quién la
   // anuló. Prisma necesita un nombre para distinguirlas.
-  usuario     Usuario                @relation("RecepcionCargadaPor", fields: [usuarioId], references: [id], onDelete: Restrict)
-  anuladaPor  Usuario?               @relation("RecepcionAnuladaPor", fields: [anuladaPorId], references: [id], onDelete: Restrict)
-  lineas      LineaRecepcionCompra[]
-  movimientos MovimientoStock[]
+  usuario      Usuario                @relation("RecepcionCargadaPor", fields: [usuarioId], references: [id], onDelete: Restrict)
+  anuladaPor   Usuario?               @relation("RecepcionAnuladaPor", fields: [anuladaPorId], references: [id], onDelete: Restrict)
+  lineas       LineaRecepcionCompra[]
+  movimientos  MovimientoStock[]
+  comprobantes Comprobante[]
 
   @@unique([empresaId, numero])
   @@index([empresaId, sucursalId, fecha])
@@ -1123,4 +1133,101 @@ model LineaTransferencia {
   @@unique([transferenciaId, insumoId])
   @@index([insumoId])
   @@map("linea_transferencia")
+}
+
+// ===========================================================================
+// ETAPA 2 — Compras en acopio: pagos, comprobantes y notas (Fases 12b y 12c)
+// ===========================================================================
+
+/// Cómo se pagó (C-25 del cliente: efectivo o digital).
+enum MedioPago {
+  EFECTIVO
+  TRANSFERENCIA
+  MERCADO_PAGO
+
+  @@map("medio_pago")
+}
+
+/// Un pago de una compra. Marcelo paga por adelantado (C-20): lo normal es
+/// un solo pago por el total, pero puede haber varios.
+///
+/// NO se borra: se ANULA (con quién, cuándo y por qué), igual que una
+/// recepción. "Lo pagado" de una compra es la suma de los pagos NO anulados,
+/// y se calcula: nunca se guarda (regla 15).
+model Pago {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId     String    @map("empresa_id") @db.Uuid
+  ordenCompraId String    @map("orden_compra_id") @db.Uuid
+  /// Cuándo se pagó en la realidad (puede cargarse después). Distinto de
+  /// created_at, que es cuándo se cargó.
+  fecha         DateTime  @db.Timestamptz(6)
+  monto         Decimal   @db.Decimal(18, 4)
+  medio         MedioPago
+  nota          String?
+  usuarioId     String    @map("usuario_id") @db.Uuid
+
+  anuladoAt       DateTime? @map("anulado_at") @db.Timestamptz(6)
+  anuladoPorId    String?   @map("anulado_por_id") @db.Uuid
+  motivoAnulacion String?   @map("motivo_anulacion")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  orden        OrdenCompra   @relation(fields: [ordenCompraId], references: [id], onDelete: Restrict)
+  usuario      Usuario       @relation("PagoCargadoPor", fields: [usuarioId], references: [id], onDelete: Restrict)
+  anuladoPor   Usuario?      @relation("PagoAnuladoPor", fields: [anuladoPorId], references: [id], onDelete: Restrict)
+  comprobantes Comprobante[]
+
+  @@index([empresaId, fecha])
+  @@index([ordenCompraId])
+  @@map("pago")
+}
+
+/// Una imagen (foto o captura, C-24) colgada de un pago o de una entrega.
+///
+/// Se guarda DENTRO de Postgres (bytea): así entra sola en el backup cifrado,
+/// y nunca queda una foto suelta en el disco sin su pago. El navegador la
+/// achica antes de subirla (~300 KB). Un CHECK de la migración exige que
+/// cuelgue de UNO solo: de un pago o de una entrega.
+model Comprobante {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId         String  @map("empresa_id") @db.Uuid
+  pagoId            String? @map("pago_id") @db.Uuid
+  recepcionCompraId String? @map("recepcion_compra_id") @db.Uuid
+  /// El tipo REAL, el que salió de mirar los primeros bytes (no el que dijo
+  /// el navegador): image/jpeg, image/png o image/webp.
+  tipo              String
+  datos             Bytes   @db.ByteA
+  bytes             Int
+  usuarioId         String  @map("usuario_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  empresa   Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  pago      Pago?            @relation(fields: [pagoId], references: [id], onDelete: Restrict)
+  recepcion RecepcionCompra? @relation(fields: [recepcionCompraId], references: [id], onDelete: Restrict)
+  usuario   Usuario          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([pagoId])
+  @@index([recepcionCompraId])
+  @@map("comprobante")
+}
+
+/// Una anotación libre en una compra ("dicen que la próxima viene el 19").
+/// No se edita ni se borra: es parte del historial de la compra.
+model NotaCompra {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  empresaId     String @map("empresa_id") @db.Uuid
+  ordenCompraId String @map("orden_compra_id") @db.Uuid
+  texto         String
+  usuarioId     String @map("usuario_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  empresa Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  orden   OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Restrict)
+  usuario Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([ordenCompraId])
+  @@map("nota_compra")
 }

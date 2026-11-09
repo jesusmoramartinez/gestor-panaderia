@@ -5,21 +5,26 @@ import {
   aDecimal,
   type AnularRecepcionInput,
   type CerrarOrdenInput,
+  type ComprobanteSalida,
   type CostoInsumo,
   costoPorUnidadBase,
+  cuentaDeCompra,
   type CrearOrdenInput,
   type Decimal,
   diaEnArgentina,
   type EditarOrdenInput,
+  estadoDePago,
   estaAtrasada,
   type EstadoOrden,
   type FiltroOrdenes,
   type FiltroRecepciones,
   formatearCantidad,
+  formatearDinero,
   type ListaOrdenes,
   type ListaRecepciones,
   type OrdenDetalle,
   type OrdenResumen,
+  type PagoSalida,
   pendienteDe,
   puedeHacer,
   recalcularEstadoOrden,
@@ -29,10 +34,12 @@ import {
   type RecepcionResumen,
   redondearCantidad,
   redondearDinero,
+  sePuedePagar,
 } from '@panaderia/shared';
 import { randomUUID } from 'node:crypto';
 
 import { registrarAuditoria } from '../../lib/auditoria.js';
+import { decodificarImagenes, guardarComprobantes } from '../../lib/comprobantes.js';
 import { type Contexto, puedeOperarEn } from '../../lib/contexto.js';
 import { prisma } from '../../lib/db.js';
 import { AppError, errores } from '../../lib/errores.js';
@@ -76,8 +83,55 @@ function totalDe(
   ).toString();
 }
 
+/**
+ * El total COMPLETO: null si algún renglón no tiene precio. Es distinto de
+ * `totalDe` (que suma lo que se puede, para mostrar un estimado): contra un
+ * total incompleto no se puede decir si una compra está pagada.
+ */
+function totalCompleto(
+  lineas: readonly { cantidad: { toString(): string }; precioUnitario: unknown }[],
+): Decimal | null {
+  if (lineas.some((linea) => linea.precioUnitario === null)) return null;
+  return aDecimal(totalDe(lineas as Parameters<typeof totalDe>[0]) ?? '0');
+}
+
+function sumaDe(montos: readonly { monto: { toString(): string } }[]): Decimal {
+  return montos.reduce((suma, pago) => suma.plus(pago.monto.toString()), aDecimal('0'));
+}
+
+export function aComprobanteSalida(fila: {
+  id: string;
+  tipo: string;
+  bytes: number;
+  createdAt: Date;
+}): ComprobanteSalida {
+  return {
+    id: fila.id,
+    // La base solo admite estos tres (CHECK de la migración).
+    tipo: fila.tipo as ComprobanteSalida['tipo'],
+    bytes: fila.bytes,
+    creadoAt: fila.createdAt.toISOString(),
+  };
+}
+
+function aPagoSalida(fila: repo.FilaPago): PagoSalida {
+  return {
+    id: fila.id,
+    fecha: fila.fecha.toISOString(),
+    monto: fila.monto.toString(),
+    medio: fila.medio,
+    nota: fila.nota,
+    usuario: fila.usuario,
+    anuladoAt: fila.anuladoAt?.toISOString() ?? null,
+    anuladoPor: fila.anuladoPor,
+    motivoAnulacion: fila.motivoAnulacion,
+    comprobantes: fila.comprobantes.map(aComprobanteSalida),
+  };
+}
+
 function aOrdenResumen(fila: repo.FilaOrdenResumen, hoy: string): OrdenResumen {
   const fechaEntregaEstimada = deColumnaDia(fila.fechaEntregaEstimada);
+  const pagado = redondearDinero(sumaDe(fila.pagos));
   return {
     id: fila.id,
     numero: fila.numero,
@@ -91,6 +145,8 @@ function aOrdenResumen(fila: repo.FilaOrdenResumen, hoy: string): OrdenResumen {
     pedidaAt: fila.pedidaAt?.toISOString() ?? null,
     totalEstimado: totalDe(fila.lineas),
     cantidadLineas: fila.lineas.length,
+    pagado: pagado.toString(),
+    estadoPago: estadoDePago(totalCompleto(fila.lineas), pagado),
   };
 }
 
@@ -406,6 +462,27 @@ export async function editarOrden(
       );
     }
 
+    // Etapa 2: si ya se pagó algo, el total nuevo no puede quedar por debajo
+    // de lo pagado (ni sin total: ¿pagado contra qué?). Se lee con el
+    // candado de la orden tomado, que es el mismo que toma registrar un pago.
+    const pagado = aDecimal(await repo.pagadoDeOrden(tx, ordenId));
+    if (pagado.greaterThan(0)) {
+      const nuevoTotal = totalCompleto(
+        entrada.lineas.map((linea) => ({
+          cantidad: linea.cantidad,
+          precioUnitario: linea.precioUnitario,
+        })),
+      );
+      if (nuevoTotal === null || nuevoTotal.lessThan(pagado)) {
+        throw new AppError(
+          'TOTAL_MENOR_A_LO_PAGADO',
+          `Ya pagaste ${formatearDinero(pagado)} de esta compra: el total no puede quedar ` +
+            'por debajo de eso, ni sin precio. Si te equivocaste en el pago, anulalo primero.',
+          409,
+        );
+      }
+    }
+
     const antes = await repo.lineasDeOrden(tx, ordenId);
 
     await tx.lineaOrdenCompra.deleteMany({ where: { ordenCompraId: ordenId } });
@@ -565,6 +642,20 @@ export async function obtenerOrden(ctx: Contexto, ordenId: string): Promise<Orde
     (accion) => accion !== 'editar' || recepciones.length === 0,
   );
 
+  // Etapa 2: las dos cuentas de la compra, plata y mercadería.
+  const pagos = await repo.pagosDeOrden(ctx.empresaId, ordenId);
+  const pagado = sumaDe(pagos.filter((pago) => pago.anuladoAt === null));
+  const cuenta = cuentaDeCompra(
+    fila.lineas.map((linea) => ({
+      cantidad: linea.cantidad.toString(),
+      cantidadBase: linea.cantidadBase.toString(),
+      recibidoBase: recibido.get(linea.id) ?? '0',
+      factor: linea.factorConversion.toString(),
+      precioUnitario: linea.precioUnitario?.toString() ?? null,
+    })),
+    pagado,
+  );
+
   return {
     ...aOrdenResumen(fila, hoy),
     notas: fila.notas,
@@ -573,6 +664,18 @@ export async function obtenerOrden(ctx: Contexto, ordenId: string): Promise<Orde
     lineas,
     recepciones: recepciones.map(aRecepcionResumen),
     acciones: [...acciones],
+    cuenta: {
+      total: cuenta.total?.toString() ?? null,
+      pagado: cuenta.pagado.toString(),
+      saldo: cuenta.saldo?.toString() ?? null,
+      estadoPago: cuenta.estadoPago,
+      valorRecibido: cuenta.valorRecibido.toString(),
+      valorPendiente: cuenta.valorPendiente.toString(),
+      adelantadoSinEntregar: cuenta.adelantadoSinEntregar.toString(),
+      renglonesSinPrecio: cuenta.renglonesSinPrecio,
+    },
+    pagos: pagos.map(aPagoSalida),
+    puedePagar: sePuedePagar(fila.estado) && cuenta.saldo !== null && cuenta.saldo.greaterThan(0),
   };
 }
 
@@ -795,6 +898,9 @@ export async function recibirDeOrden(
   ordenId: string,
   entrada: RecepcionDeOrdenInput,
 ): Promise<RecepcionDetalle> {
+  // La foto del remito se verifica ANTES de abrir la transacción.
+  const imagenes = decodificarImagenes(entrada.comprobantes);
+
   const { id } = await prisma.$transaction(async (tx) => {
     if (!(await repo.bloquearOrden(tx, ctx.empresaId, ordenId))) {
       throw errores.noEncontrado('La orden de compra');
@@ -883,6 +989,13 @@ export async function recibirDeOrden(
       notas: entrada.notas,
       lineas,
     });
+
+    await guardarComprobantes(
+      tx,
+      { empresaId: ctx.empresaId, usuarioId: ctx.usuarioId },
+      { recepcionCompraId: confirmada.id },
+      imagenes,
+    );
 
     // PEDIDA → PARCIAL → RECIBIDA: no lo elige nadie, lo dice lo que llegó.
     await actualizarEstadoOrden(tx, orden);
@@ -1002,6 +1115,7 @@ export async function obtenerRecepcion(
     operacionId: fila.operacionId,
     anuladaPor: fila.anuladaPor,
     motivoAnulacion: fila.motivoAnulacion,
+    comprobantes: fila.comprobantes.map(aComprobanteSalida),
     lineas: fila.lineas.map((linea) => ({
       id: linea.id,
       lineaOrdenId: linea.lineaOrdenCompraId,

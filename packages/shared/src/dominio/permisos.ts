@@ -91,6 +91,11 @@ export const PERMISOS = [
    */
   'compra:recibir',
   /**
+   * PAGAR: registrar los pagos de una compra y sus comprobantes (Etapa 2).
+   * Es plata que sale: solo el dueño. Anular un pago lleva `compra:anular`.
+   */
+  'compra:pagar',
+  /**
    * Anular una recepción. Solo el dueño: además del stock de una sucursal,
    * cambia el costo promedio de TODA la empresa.
    */

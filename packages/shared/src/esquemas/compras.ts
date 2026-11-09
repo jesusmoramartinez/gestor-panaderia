@@ -3,6 +3,14 @@ import { z } from 'zod';
 import { ACCIONES_ORDEN, ESTADOS_ORDEN } from '../dominio/compras.js';
 import { aDecimal, esDecimalValido, normalizarNumero } from '../dominio/decimal.js';
 import { CantidadMovimientoSchema, FechaHechoSchema, NotasOpcional } from './movimientos.js';
+import {
+  ComprobanteSalidaSchema,
+  CuentaCompraSchema,
+  EstadoPagoSchema,
+  ImagenEntradaSchema,
+  MAX_COMPROBANTES,
+  PagoSalidaSchema,
+} from './pagos.js';
 import { PrecioOpcional, PrecioSchema } from './proveedores.js';
 
 export const EstadoOrdenSchema = z.enum(ESTADOS_ORDEN);
@@ -176,6 +184,8 @@ export const RecepcionDeOrdenSchema = DatosRecepcion.extend({
    * 20 en Catán y 20 en Laferrere: lo que falta se cuenta por compra.
    */
   sucursalId: UuidOpcional,
+  /** Foto del remito (C-30), opcional. */
+  comprobantes: z.array(ImagenEntradaSchema).max(MAX_COMPROBANTES).default([]),
   lineas: z
     .array(LineaRecepcionOrdenSchema)
     .min(1, 'Hay que recibir al menos una línea')
@@ -261,6 +271,9 @@ export const OrdenResumenSchema = z.object({
   /** Suma de cantidad × precio de las líneas con precio. Null si ninguna tiene. */
   totalEstimado: z.string().nullable(),
   cantidadLineas: z.number().int(),
+  /** Etapa 2: cuánto se pagó (pagos no anulados) y el estado que sale de eso. */
+  pagado: z.string(),
+  estadoPago: EstadoPagoSchema,
 });
 export type OrdenResumen = z.infer<typeof OrdenResumenSchema>;
 export const ListaOrdenesSchema = z.object({
@@ -320,6 +333,11 @@ export const OrdenDetalleSchema = OrdenResumenSchema.extend({
    * botones que vienen en esta lista y ninguno más.
    */
   acciones: z.array(AccionOrdenSchema),
+  /** Etapa 2: la cuenta de plata y mercadería, y los pagos (con los anulados). */
+  cuenta: CuentaCompraSchema,
+  pagos: z.array(PagoSalidaSchema),
+  /** Si se puede registrar un pago ahora (estado y saldo; el permiso, aparte). */
+  puedePagar: z.boolean(),
 });
 export type OrdenDetalle = z.infer<typeof OrdenDetalleSchema>;
 
@@ -344,6 +362,8 @@ export const RecepcionDetalleSchema = RecepcionResumenSchema.extend({
   anuladaPor: Referencia.nullable(),
   motivoAnulacion: z.string().nullable(),
   lineas: z.array(LineaRecepcionSalidaSchema),
+  /** Fotos del remito (Etapa 2). */
+  comprobantes: z.array(ComprobanteSalidaSchema),
   /**
    * El costo promedio ACTUAL de cada insumo de la recepción. Recién
    * confirmada, es el que quedó después de ella ("la harina quedó en
@@ -456,11 +476,15 @@ const CantidadRecibidaSchema = z
   .string()
   .trim()
   .transform((valor) => (valor === '' ? '0' : normalizarNumero(valor)))
-  .refine((valor) => esDecimalValido(valor), 'No es un número válido')
+  // abort: si no es un número, no se sigue validando. En Zod 4 las
+  // validaciones siguientes corren igual, y aDecimal('mil') LANZA: la API
+  // devolvía un 500 por un dato mal escrito (lo encontró un test de pagos).
+  .refine((valor) => esDecimalValido(valor), { error: 'No es un número válido', abort: true })
   .refine((valor) => aDecimal(valor).greaterThanOrEqualTo(0), 'No puede ser negativo');
 
 export const RecibirOrdenFormSchema = DatosRecepcion.extend({
   sucursalId: UuidOpcional,
+  comprobantes: z.array(ImagenEntradaSchema).max(MAX_COMPROBANTES).default([]),
   lineas: z
     .array(
       z.object({
@@ -492,6 +516,7 @@ export function aRecepcionDeOrden(valores: RecibirOrdenFormInput): RecepcionDeOr
   return {
     fecha: valores.fecha,
     sucursalId: valores.sucursalId,
+    comprobantes: valores.comprobantes,
     numeroRemito: valores.numeroRemito,
     numeroFactura: valores.numeroFactura,
     notas: valores.notas,

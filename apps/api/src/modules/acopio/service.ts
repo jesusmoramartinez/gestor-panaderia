@@ -8,6 +8,7 @@ import {
   diaEnArgentina,
   diasEntre,
   type LoQueMeDeben,
+  type PlataAFavor,
   type RenglonDeuda,
   redondearDinero,
 } from '@panaderia/shared';
@@ -107,9 +108,38 @@ export async function loQueMeDeben(ctx: Contexto): Promise<LoQueMeDeben> {
     });
   }
 
+  // Las terminadas que se pagaron de más: plata a favor.
+  const terminadas = await repo.comprasTerminadasConPagos(ctx.empresaId, ctx.sucursalesPermitidas);
+  const idsTerminadas = terminadas.map((compra) => compra.id);
+  const recibidoTerminadas = await repo.recibidoPorRenglon(idsTerminadas);
+  const pagadoTerminadas = await repo.pagadoPorCompra(idsTerminadas);
+  const aFavor: PlataAFavor[] = [];
+  for (const compra of terminadas) {
+    const cuenta = cuentaDeCompra(
+      compra.lineas.map((linea) => ({
+        cantidad: linea.cantidad.toString(),
+        cantidadBase: linea.cantidadBase.toString(),
+        recibidoBase: recibidoTerminadas.get(linea.id) ?? '0',
+        factor: linea.factorConversion.toString(),
+        precioUnitario: linea.precioUnitario?.toString() ?? null,
+      })),
+      pagadoTerminadas.get(compra.id) ?? '0',
+    );
+    if (cuenta.adelantadoSinEntregar.isZero()) continue;
+    aFavor.push({
+      id: compra.id,
+      numero: compra.numero,
+      estado: compra.estado,
+      proveedor: compra.proveedor,
+      monto: cuenta.adelantadoSinEntregar.toString(),
+    });
+    adelantadoTotal = adelantadoTotal.plus(cuenta.adelantadoSinEntregar);
+  }
+
   return {
     valorPendiente: redondearDinero(valorPendienteTotal).toString(),
     adelantadoSinEntregar: redondearDinero(adelantadoTotal).toString(),
+    aFavor,
     // El que más le debe, primero: es a quien hay que llamar.
     proveedores: [...porProveedor.values()]
       .filter((deuda) => deuda.renglones.length > 0)

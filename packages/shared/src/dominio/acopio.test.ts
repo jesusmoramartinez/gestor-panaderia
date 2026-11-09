@@ -6,6 +6,7 @@ import {
   diasEntre,
   estadoDePago,
   type RenglonAcopio,
+  sePuedePagar,
   validarPago,
 } from './acopio.js';
 import { aDecimal } from './decimal.js';
@@ -153,5 +154,16 @@ describe('días entre dos días', () => {
     expect(diasEntre('2026-11-08', '2026-11-08')).toBe(0);
     // Cruza el fin de mes y de año.
     expect(diasEntre('2026-12-30', '2027-01-02')).toBe(3);
+  });
+});
+
+describe('en qué estados se paga', () => {
+  it('desde que se pidió, salvo cancelada', () => {
+    expect(sePuedePagar('BORRADOR')).toBe(false);
+    expect(sePuedePagar('PEDIDA')).toBe(true);
+    expect(sePuedePagar('PARCIAL')).toBe(true);
+    expect(sePuedePagar('RECIBIDA')).toBe(true);
+    expect(sePuedePagar('CERRADA')).toBe(true);
+    expect(sePuedePagar('CANCELADA')).toBe(false);
   });
 });

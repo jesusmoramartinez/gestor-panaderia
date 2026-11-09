@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { EtiquetaAnulada, EtiquetaAtrasada, EtiquetaEstadoOrden } from '../components/compras';
+import { EtiquetaEstadoPago } from '../components/PagosDeCompra';
 import {
   CLASE_BOTON_PRIMARIO,
   CLASE_BOTON_SECUNDARIO,
@@ -164,6 +165,10 @@ function FilaOrden({ orden }: { orden: OrdenResumen }) {
           <span className="font-semibold">Compra {orden.numero}</span>
           <span className="font-medium">{orden.proveedor.nombre}</span>
           <EtiquetaEstadoOrden estado={orden.estado} />
+          {/* El estado de pago solo cuando ya es una compra (no un borrador). */}
+          {orden.estado !== 'BORRADOR' && orden.estado !== 'CANCELADA' && (
+            <EtiquetaEstadoPago estado={orden.estadoPago} />
+          )}
           {orden.atrasada && <EtiquetaAtrasada fecha={orden.fechaEntregaEstimada} />}
           <span className="ml-auto font-semibold tabular-nums">
             {orden.totalEstimado === null ? '' : formatearDinero(orden.totalEstimado)}

@@ -30,7 +30,7 @@ export function LoQueMeDeben() {
     return <p className="text-sm text-slate-600 dark:text-slate-400">Cargando...</p>;
   }
   const datos = deudas.data;
-  const nadaPendiente = datos.proveedores.length === 0;
+  const nadaPendiente = datos.proveedores.length === 0 && datos.aFavor.length === 0;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -79,6 +79,41 @@ export function LoQueMeDeben() {
             ))}
           </section>
         </>
+      )}
+
+      {datos.aFavor.length > 0 && (
+        <section aria-labelledby="titulo-a-favor" className="space-y-3">
+          <h2
+            id="titulo-a-favor"
+            className="text-sm font-semibold tracking-wide text-slate-600 uppercase dark:text-slate-400"
+          >
+            Te tienen que devolver
+          </h2>
+          <ul className="space-y-2">
+            {datos.aFavor.map((item) => (
+              <li key={item.id}>
+                <Link
+                  to={`/compras/${item.id}`}
+                  className="flex flex-wrap items-baseline justify-between gap-2 rounded-2xl bg-white p-4 shadow-sm hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/60"
+                >
+                  <span>
+                    <span className="block font-semibold text-slate-900 dark:text-slate-50">
+                      {item.proveedor.nombre}
+                    </span>
+                    <span className="block text-sm text-slate-600 dark:text-slate-400">
+                      Compra {item.numero} ·{' '}
+                      {item.estado === 'CANCELADA' ? 'cancelada' : 'cerrada con faltante'}: la
+                      pagaste y no va a llegar
+                    </span>
+                  </span>
+                  <span className="font-bold text-red-700 tabular-nums dark:text-red-400">
+                    {formatearDinero(item.monto)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {datos.comprasAbiertas.length > 0 && (

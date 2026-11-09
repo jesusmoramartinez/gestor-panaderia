@@ -56,11 +56,28 @@ export const CompraAbiertaSchema = z.object({
 });
 export type CompraAbierta = z.infer<typeof CompraAbiertaSchema>;
 
+/**
+ * Una compra terminada (cerrada con faltante o cancelada) que se pagó más de
+ * lo que llegó: el proveedor tiene que devolver la diferencia.
+ */
+export const PlataAFavorSchema = z.object({
+  id: z.uuid(),
+  numero: z.number().int(),
+  estado: EstadoOrdenSchema,
+  proveedor: Referencia,
+  monto: z.string(),
+});
+export type PlataAFavor = z.infer<typeof PlataAFavorSchema>;
+
 export const LoQueMeDebenSchema = z.object({
   /** Todo lo que le deben, valorizado al precio de cada compra. */
   valorPendiente: z.string(),
-  /** Toda la plata suya que hoy tienen los proveedores. */
+  /**
+   * Toda la plata suya que hoy tienen los proveedores: lo pagado y no
+   * entregado de las compras abiertas, más la plata a favor de las terminadas.
+   */
   adelantadoSinEntregar: z.string(),
+  aFavor: z.array(PlataAFavorSchema),
   proveedores: z.array(DeudaProveedorSchema),
   /** De la más vieja a la más nueva. */
   comprasAbiertas: z.array(CompraAbiertaSchema),

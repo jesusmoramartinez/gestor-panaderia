@@ -155,6 +155,8 @@ const SELECCION_ORDEN_RESUMEN = {
   proveedor: { select: { id: true, nombre: true } },
   usuario: { select: { id: true, nombre: true } },
   lineas: { select: { cantidad: true, precioUnitario: true } },
+  // Lo pagado (Etapa 2): solo los pagos vigentes.
+  pagos: { where: { anuladoAt: null }, select: { monto: true } },
 } as const;
 
 export type FilaOrdenResumen = Prisma.OrdenCompraGetPayload<{
@@ -216,6 +218,47 @@ export function ordenDetalle(empresaId: string, ordenId: string) {
       },
     },
   });
+}
+
+/**
+ * Un comprobante SIN sus bytes: los listados nunca traen las imágenes (serían
+ * megas por pedido). La imagen se pide aparte, de a una, por su URL.
+ */
+export const SELECCION_COMPROBANTE = {
+  id: true,
+  tipo: true,
+  bytes: true,
+  createdAt: true,
+} as const;
+
+/** Los pagos de una orden, con los anulados (son parte de su historia). */
+export function pagosDeOrden(empresaId: string, ordenId: string) {
+  return prisma.pago.findMany({
+    where: { empresaId, ordenCompraId: ordenId },
+    orderBy: [{ fecha: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      fecha: true,
+      monto: true,
+      medio: true,
+      nota: true,
+      anuladoAt: true,
+      motivoAnulacion: true,
+      usuario: { select: { id: true, nombre: true } },
+      anuladoPor: { select: { id: true, nombre: true } },
+      comprobantes: { orderBy: { createdAt: 'asc' }, select: SELECCION_COMPROBANTE },
+    },
+  });
+}
+export type FilaPago = Awaited<ReturnType<typeof pagosDeOrden>>[number];
+
+/** Lo pagado de una orden (pagos vigentes). Con el `tx` de quien tiene el candado. */
+export async function pagadoDeOrden(cliente: Cliente, ordenId: string): Promise<string> {
+  const suma = await cliente.pago.aggregate({
+    where: { ordenCompraId: ordenId, anuladoAt: null },
+    _sum: { monto: true },
+  });
+  return suma._sum.monto?.toString() ?? '0';
 }
 
 // ===========================================================================
@@ -321,6 +364,7 @@ export function recepcionDetalle(empresaId: string, recepcionId: string) {
       operacionId: true,
       motivoAnulacion: true,
       anuladaPor: { select: { id: true, nombre: true } },
+      comprobantes: { orderBy: { createdAt: 'asc' }, select: SELECCION_COMPROBANTE },
       lineas: {
         orderBy: { insumo: { nombre: 'asc' } },
         select: {

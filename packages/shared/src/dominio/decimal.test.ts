@@ -11,6 +11,7 @@ import {
   normalizarNumero,
   redondearCantidad,
   redondearDinero,
+  normalizarImporte,
 } from './decimal.js';
 
 describe('aritmética decimal exacta', () => {
@@ -152,5 +153,36 @@ describe('formatearDinero', () => {
   it('no pierde precisión con importes grandes', () => {
     // Si pasáramos por number, este número se deformaría.
     expect(formatearDinero('123456789012345.67')).toBe('$\u00a0123.456.789.012.345,67');
+  });
+});
+
+describe('normalizarImporte (plata, en formato argentino)', () => {
+  it('el punto cada tres dígitos es de miles', () => {
+    expect(normalizarImporte('18.500')).toBe('18500');
+    expect(normalizarImporte('2.000.000')).toBe('2000000');
+    expect(normalizarImporte('$ 2.000.000')).toBe('2000000');
+  });
+
+  it('con coma, la coma es el decimal y los puntos de miles (como siempre)', () => {
+    expect(normalizarImporte('18.500,50')).toBe('18500.50');
+    expect(normalizarImporte('18,5')).toBe('18.5');
+  });
+
+  it('lo que no tiene forma de miles queda igual que normalizarNumero', () => {
+    expect(normalizarImporte('18.5')).toBe('18.5');
+    expect(normalizarImporte('18500')).toBe('18500');
+    expect(normalizarImporte('1.23456')).toBe('1.23456');
+  });
+});
+
+describe('normalizarNumero es idempotente', () => {
+  it('normalizar dos veces da lo mismo que una', () => {
+    for (const texto of ['1.234,5', '2,5', '2.5', '1,2,3', 'mil', '1.2,3']) {
+      expect(normalizarNumero(normalizarNumero(texto)), texto).toBe(normalizarNumero(texto));
+    }
+  });
+
+  it('dos comas no es un número', () => {
+    expect(esDecimalValido(normalizarNumero('1,2,3'))).toBe(false);
   });
 });
